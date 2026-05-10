@@ -10,6 +10,7 @@ from src.config import settings
 logger = structlog.get_logger()
 router = APIRouter()
 
+
 def get_process_webhook_use_case(request: Request) -> ProcessWebhookUseCase:
     """Dependency provider for the ProcessWebhookUseCase."""
     kafka_producer = getattr(request.app.state, "kafka_producer", None)
@@ -17,14 +18,15 @@ def get_process_webhook_use_case(request: Request) -> ProcessWebhookUseCase:
         raise RuntimeError("Kafka producer not initialized in app state")
 
     repository = KafkaCodeChangeRepository(
-        producer=kafka_producer, 
-        topic=settings.webhook_events_topic
+        producer=kafka_producer, topic=settings.webhook_events_topic
     )
     return ProcessWebhookUseCase(repository=repository)
+
 
 @router.get("/health")
 async def health():
     return {"status": "ok"}
+
 
 @router.post("/webhooks/github", status_code=202)
 async def github_webhook(
@@ -32,7 +34,7 @@ async def github_webhook(
     x_github_event: str = Header(...),
     use_case: ProcessWebhookUseCase = Depends(get_process_webhook_use_case),
 ):
-    payload = event.model_dump(exclude_unset=True)    
+    payload = event.model_dump(exclude_unset=True)
     try:
         await use_case.execute(payload, event_type=x_github_event)
     except MappingError as e:
