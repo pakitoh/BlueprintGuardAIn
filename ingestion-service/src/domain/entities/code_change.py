@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import Dict, Any
+from ..exceptions import MappingError
 
 @dataclass(frozen=True)
 class CodeChange:
@@ -13,21 +14,27 @@ class CodeChange:
     @classmethod
     def from_push_event(cls, payload: Dict[str, Any]) -> "CodeChange":
         """Factory method to create a CodeChange from a GitHub push event."""
-        return cls(
-            repository=payload["repository"]["full_name"],
-            ref=payload["ref"],
-            target_sha=payload["after"],
-            event_type="push",
-            raw_payload=payload
-        )
+        try:
+            return cls(
+                repository=payload["repository"]["full_name"],
+                ref=payload["ref"],
+                target_sha=payload["after"],
+                event_type="push",
+                raw_payload=payload
+            )
+        except KeyError as e:
+            raise MappingError(f"Missing required field in push event: {e}")
 
     @classmethod
     def from_pull_request_event(cls, payload: Dict[str, Any]) -> "CodeChange":
         """Factory method to create a CodeChange from a GitHub pull request event."""
-        return cls(
-            repository=payload["repository"]["full_name"],
-            ref=f"pr/{payload['number']}",
-            target_sha=payload["pull_request"]["head"]["sha"],
-            event_type="pull_request",
-            raw_payload=payload
-        )
+        try:
+            return cls(
+                repository=payload["repository"]["full_name"],
+                ref=f"pr/{payload['number']}",
+                target_sha=payload["pull_request"]["head"]["sha"],
+                event_type="pull_request",
+                raw_payload=payload
+            )
+        except KeyError as e:
+            raise MappingError(f"Missing required field in pull request event: {e}")
