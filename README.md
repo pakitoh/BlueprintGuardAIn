@@ -1,6 +1,15 @@
-# BlueprintGuardAIn
+<p align="center">
+    <a href="https://github.com/pakitoh/blueprintGuarAIn">
+        <img src="logo.png" alt="Logo" width="200">
+    </a>
+</p>
+<p align="center" style="color:rgb(40,82,100);font-size:44px;font-weight:bold;">
+    <span style="color:rgb(23,47,88)">Blueprint</span> Guard<span style="color:white">AI</span>n
+</p>
 
-**BlueprintGuardAIn** is an autonomous codebase intelligence platform designed to maintain architectural integrity and documentation health. It acts as an AI-driven peer reviewer that lives in your CI/CD pipeline, ensuring your code aligns with your project's defined domain rules and helping you to maintain architectural integrity.
+# 🛡️ Description
+
+**Blueprint GuardAIn** is an autonomous codebase intelligence platform designed to maintain architectural integrity and documentation health. It acts as an AI-driven peer reviewer that lives in your CI/CD pipeline, ensuring your code aligns with your project's defined domain rules and helping you to maintain architectural integrity.
 
 ## 🏗️ Monorepo Architecture
 
