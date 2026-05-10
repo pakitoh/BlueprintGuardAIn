@@ -1,65 +1,86 @@
 # BlueprintGuardAIn
 
-**BlueprintGuardAIn** is an autonomous codebase intelligence engine designed to maintain architectural integrity and documentation health. It acts as an AI-driven peer reviewer that lives in your CI/CD pipeline, ensuring your code aligns with your project's defined domain rules and architectural vision.
+**BlueprintGuardAIn** is an autonomous codebase intelligence platform designed to maintain architectural integrity and documentation health. It acts as an AI-driven peer reviewer that lives in your CI/CD pipeline, ensuring your code aligns with your project's defined domain rules and helping you to maintain architectural integrity.
 
-## 🚀 Key Features
-- **Async Processing (Level 3):** Powered by Kafka to handle high-volume repository events without timeouts.
-- **Architectural Guardrails:** Uses LLMs to detect "architectural drift" (e.g., domain leaks, pattern violations).
-- **Self-Healing Docs:** Automatically keeps `README` and architectural documentation in sync with code changes.
-- **Knowledge Oracle (RAG):** Exposes an API for developers to query the codebase using natural language.
+## 🏗️ Monorepo Architecture
 
-## 🏗️ Architecture
-The project follows **Domain-Driven Design (DDD)** principles:
-- **Domain:** Pure business logic and AI analysis rules.
-- **Application:** Orchestration of Kafka events and RAG workflows.
-- **Infrastructure:** Implementation of Kafka producers/consumers, PostgreSQL + pgvector, and LLM clients.
-- **Interface:** FastAPI for webhooks and the developer query API.
+This project is structured as a collection of **independent microservices**. Each service is a standalone Python project with its own dependencies and environment, communicating asynchronously via **Kafka**.
 
-## 🛠️ Prerequisites
-- **Python 3.12+**
-- **uv** (Dependency and Python manager)
-- **Docker** (For Kafka and PostgreSQL/pgvector)
+### Service Map
+1.  **`ingestion-service/`**: FastAPI gateway. Receives GitHub Webhooks, validates signatures, and produces raw events to Kafka.
+2.  **`analysis-worker/`**: The "Brain". Consumes events, fetches code diffs, performs AI analysis using LLMs, and stores embeddings in **pgvector**.
+3.  **`action-worker/`**: The "Actuator". Consumes analysis results and interacts with external APIs (GitHub PR comments, Slack, etc.).
+
+---
+
+## 🚀 Core Features
+*   **Asynchronous Processing:** Powered by Kafka to handle long-running AI analysis tasks without timing out webhooks.
+*   **Architectural Guardrails:** Detects "architectural drift" (e.g., domain leaks) using context-aware LLM analysis.
+*   **Semantic Knowledge Base:** Uses **pgvector** and RAG to allow natural language queries against your codebase history.
+*   **Strict Decoupling:** Services are physically separated, allowing for independent scaling and deployment.
+
+---
 
 ## 📦 Getting Started
 
-### 1. Environment Setup
-```bash
-# Clone the repository (or enter the directory)
-cd archivist-ai
+### 1. Prerequisites
+*   **Python 3.12+** (Managed by `uv`)
+*   **Docker & Docker Compose** (For Kafka, PostgreSQL, and pgvector)
+*   **OpenAI API Key** (For analysis and embeddings)
 
-# Initialize the environment and install dependencies
-uv sync
-```
-
-### 2. Infrastructure
-Launch the required services (Kafka, Postgres, pgvector) using Docker Compose:
+### 2. Infrastructure Setup
+Launch the shared infrastructure at the root:
 ```bash
 docker-compose up -d
 ```
 
-### 3. Running the Application
+### 3. Service Initialization
+Since each service is independent, you must initialize each one:
 ```bash
-# Start the Ingestion Service (FastAPI)
-uv run uvicorn src.interface.api.main:app --reload
-
-# Start the Analysis Worker (Kafka Consumer)
-uv run python -m src.infrastructure.workers.analysis
+cd ingestion-service && uv sync
+cd ../analysis-worker && uv sync
+cd ../action-worker && uv sync
 ```
 
-## 🧪 Testing
-We follow strict **TDD**. No feature is implemented without a failing test first.
-```bash
-# Run all tests
-uv run pytest
+### 4. Running the Platform
+Open three terminal tabs to run the services:
 
-# Run with coverage
-uv run pytest --cov=src
+**Tab 1 (Ingestion):**
+```bash
+cd ingestion-service && uv run python -m src.main
 ```
 
-## 🛡️ Validation
-Before committing, ensure all quality gates pass:
+**Tab 2 (Analysis):**
 ```bash
-uv run ruff check .
-uv run mypy .
-uv run pytest
+cd analysis-worker && uv run python -m src.main
 ```
+
+**Tab 3 (Action):**
+```bash
+cd action-worker && uv run python -m src.main
+```
+
+---
+
+## 🧪 Development & TDD
+
+Each service follows a **DDD** structure and strict **TDD** mandates.
+
+*   **Validation:** Every service must pass its own quality gates:
+    ```bash
+    uv run ruff check .
+    uv run mypy .
+    uv run pytest
+    ```
+*   **Observability:** Integrated with **OpenTelemetry** for cross-service tracing and **Structlog** for structured JSON logging.
+
+---
+
+## 🏦 Data & Events
+
+### Kafka Topics
+*   `webhook-events`: Raw events from the Ingestion Service.
+*   `analysis-results`: Structured reports from the Analysis Worker.
+
+### Storage
+*   **PostgreSQL + pgvector:** Stores structured metadata and high-dimensional code embeddings in the same instance for simplicity and performance.
