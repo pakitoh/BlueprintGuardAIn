@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from typing import Dict, Any
-from ..exceptions import MappingError
+from src.domain.exceptions import MappingError
 
 @dataclass(frozen=True)
 class CodeChange:
