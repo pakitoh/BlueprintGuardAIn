@@ -1,8 +1,11 @@
 import json
+import asyncio
 from dataclasses import asdict
 from aiokafka import AIOKafkaProducer
-from ...domain.entities.code_change import CodeChange
-from ...domain.ports.repository import CodeChangeRepository
+from src.domain.entities.code_change import CodeChange
+from src.domain.ports.repository import CodeChangeRepository
+from src.domain.exceptions import RepositoryError
+
 
 class KafkaCodeChangeRepository(CodeChangeRepository):
     def __init__(self, producer: AIOKafkaProducer, topic: str):
@@ -11,10 +14,11 @@ class KafkaCodeChangeRepository(CodeChangeRepository):
 
     async def save(self, code_change: CodeChange) -> None:
         """Serializes the CodeChange and sends it to a Kafka topic."""
-        data = asdict(code_change)
-        # Convert the dictionary to JSON bytes
-        payload = json.dumps(data).encode("utf-8")
-        
-        # In aiokafka, we use send_and_wait for simplicity in this TDD phase
-        # but in production, we might use background sending.
-        await self.producer.send_and_wait(self.topic, payload)
+        try:
+            data = asdict(code_change)
+            payload = json.dumps(data).encode("utf-8")
+            await self.producer.send_and_wait(self.topic, payload)
+        except asyncio.TimeoutError as e:
+            raise RepositoryError(f"Timeout while sending to Kafka: {e}")
+        except Exception as e:
+            raise RepositoryError(f"Failed to save code change to Kafka: {e}")

@@ -2,14 +2,24 @@ from dataclasses import dataclass
 from typing import Dict, Any
 from src.domain.exceptions import MappingError
 
+
 @dataclass(frozen=True)
 class CodeChange:
     """The core domain entity representing a trigger for analysis."""
+
     repository: str
     ref: str
     target_sha: str
     event_type: str
     raw_payload: Dict[str, Any]
+
+    def __post_init__(self):
+        if not self.repository:
+            raise MappingError("Repository cannot be empty")
+        if not self.target_sha:
+            raise MappingError("Target SHA cannot be empty")
+        if not self.event_type:
+            raise MappingError("Event type cannot be empty")
 
     @classmethod
     def from_push_event(cls, payload: Dict[str, Any]) -> "CodeChange":
@@ -20,7 +30,7 @@ class CodeChange:
                 ref=payload["ref"],
                 target_sha=payload["after"],
                 event_type="push",
-                raw_payload=payload
+                raw_payload=payload,
             )
         except KeyError as e:
             raise MappingError(f"Missing required field in push event: {e}")
@@ -34,7 +44,7 @@ class CodeChange:
                 ref=f"pr/{payload['number']}",
                 target_sha=payload["pull_request"]["head"]["sha"],
                 event_type="pull_request",
-                raw_payload=payload
+                raw_payload=payload,
             )
         except KeyError as e:
             raise MappingError(f"Missing required field in pull request event: {e}")
