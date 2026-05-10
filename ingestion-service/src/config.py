@@ -8,7 +8,7 @@ class Settings(BaseSettings):
 
     # Kafka Settings
     # Pydantic will automatically look for KAFKA_BOOTSTRAP_SERVERS
-    kafka_bootstrap_servers: str = "localhost:9092"
+    kafka_bootstrap_servers: str = "localhost:9094"
     webhook_events_topic: str = "webhook-events"
 
     # Pydantic Settings configuration
