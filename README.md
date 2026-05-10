@@ -71,6 +71,23 @@ cd action-worker && uv run python -m src.main
 
 ---
 
+## 🛠️ Simulation & Testing
+
+### Simulate GitHub Webhooks
+You can simulate incoming events from GitHub using the provided script:
+
+**Simulate a Push:**
+```bash
+uv run scripts/simulate_webhook.py push
+```
+
+**Simulate a Pull Request:**
+```bash
+uv run scripts/simulate_webhook.py pr
+```
+
+---
+
 ## 🧪 Development & TDD
 
 Each service follows a **DDD** structure and strict **TDD** mandates.
