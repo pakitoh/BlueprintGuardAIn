@@ -11,10 +11,13 @@ import sys
 import json
 import random
 import uuid
+import time
+import argparse
 from faker import Faker
 
-# This script can be run with: uv run scripts/simulate_webhook.py [push|pr]
-# It simulates a GitHub webhook call to the ingestion-service with randomized data.
+# This script simulates GitHub webhook calls to the ingestion-service with randomized data.
+# Usage:
+#   uv run scripts/simulate_webhook.py --mode [push|pr|random] --count [N] --delay [SECONDS]
 
 fake = Faker()
 BASE_URL = "http://localhost:8000/webhooks/github"
@@ -31,10 +34,10 @@ def generate_repository():
 def generate_push_payload():
     repo = generate_repository()
     return {
-        "ref": f"refs/heads/{random.choice(['main', 'develop', 'feature-ai'])}",
+        "ref": f"refs/heads/{random.choice(['main', 'develop', 'feature-ai', 'hotfix-bug'])}",
         "after": uuid.uuid4().hex,
         "repository": repo
-    }
+    }, {"X-GitHub-Event": "push"}
 
 def generate_pr_payload():
     repo = generate_repository()
@@ -49,34 +52,60 @@ def generate_pr_payload():
             "base": {"repo": repo}
         },
         "repository": repo
-    }
+    }, {"X-GitHub-Event": "pull_request"}
 
-def simulate(event_type: str):
-    if event_type == "push":
-        payload = generate_push_payload()
-        headers = {"X-GitHub-Event": "push"}
-    elif event_type == "pr":
-        payload = generate_pr_payload()
-        headers = {"X-GitHub-Event": "pull_request"}
-    else:
-        print(f"Unknown event type: {event_type}. Use 'push' or 'pr'.")
-        sys.exit(1)
+def send_webhook(mode: str):
+    if mode == "push":
+        payload, headers = generate_push_payload()
+    elif mode == "pr":
+        payload, headers = generate_pr_payload()
+    else: # random
+        payload, headers = random.choice([generate_push_payload, generate_pr_payload])()
 
-    print(f"🚀 Simulating {event_type} event...")
-    print(f"📦 Repository: {payload['repository']['full_name']}")
-    if event_type == "push":
-        print(f"🔗 Ref: {payload['ref']} | SHA: {payload['after'][:8]}")
-    else:
-        print(f"🔗 PR #{payload['number']}: {payload['pull_request']['title']}")
-
+    event_type = headers["X-GitHub-Event"]
+    
+    print(f"🚀 [{time.strftime('%H:%M:%S')}] Simulating {event_type}...")
+    
     try:
-        response = httpx.post(BASE_URL, json=payload, headers=headers)
-        print(f"✅ Status Code: {response.status_code}")
-        print(f"📄 Response: {json.dumps(response.json(), indent=2)}")
+        response = httpx.post(BASE_URL, json=payload, headers=headers, timeout=5.0)
+        status_color = "✅" if response.status_code == 202 else "⚠️"
+        print(f"{status_color} Status: {response.status_code} | Repo: {payload['repository']['full_name']}")
     except Exception as e:
         print(f"❌ Error: {e}")
-        print("\nIs the ingestion-service running on http://localhost:8000?")
+
+def main():
+    parser = argparse.ArgumentParser(description="Simulate GitHub webhooks with random data.")
+    parser.add_argument("--mode", choices=["push", "pr", "random"], default="random", help="Type of event to simulate")
+    parser.add_argument("--count", type=int, help="Number of requests to send (omit to run indefinitely)")
+    parser.add_argument("--delay", type=float, default=1.0, help="Delay between requests in seconds (default: 1.0)")
+    
+    args = parser.parse_args()
+
+    print(f"--- Webhook Simulator Started ---")
+    print(f"Target: {BASE_URL}")
+    print(f"Mode: {args.mode}")
+    print(f"Delay: {args.delay}s")
+    if args.count:
+        print(f"Count: {args.count} requests")
+    else:
+        print(f"Running indefinitely... (Ctrl+C to stop)")
+    print(f"---------------------------------")
+
+    sent = 0
+    try:
+        while True:
+            send_webhook(args.mode)
+            sent += 1
+            
+            if args.count and sent >= args.count:
+                print(f"\nFinished sending {args.count} requests.")
+                break
+                
+            time.sleep(args.delay)
+    except KeyboardInterrupt:
+        print(f"\nStopped by user. Total sent: {sent}")
+    except Exception as e:
+        print(f"\nAn unexpected error occurred: {e}")
 
 if __name__ == "__main__":
-    mode = sys.argv[1] if len(sys.argv) > 1 else "push"
-    simulate(mode)
+    main()
