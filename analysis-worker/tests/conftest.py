@@ -1,6 +1,7 @@
 import pytest
 from unittest.mock import AsyncMock
 
+
 @pytest.fixture(autouse=True)
 def mock_kafka(mocker):
     """
@@ -8,7 +9,7 @@ def mock_kafka(mocker):
     """
     mock_consumer_class = mocker.patch("src.main.AIOKafkaConsumer")
     mock_producer_class = mocker.patch("src.main.AIOKafkaProducer")
-    
+
     mock_consumer = mock_consumer_class.return_value
     mock_consumer.start = AsyncMock()
     mock_consumer.stop = AsyncMock()
@@ -19,5 +20,5 @@ def mock_kafka(mocker):
     mock_producer.start = AsyncMock()
     mock_producer.stop = AsyncMock()
     mock_producer.send_and_wait = AsyncMock()
-    
+
     return {"consumer": mock_consumer, "producer": mock_producer}

@@ -1,4 +1,4 @@
-import logging
+import logging.config
 import structlog
 from opentelemetry import trace, metrics, _logs
 from opentelemetry.sdk.resources import Resource
@@ -6,55 +6,32 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
-from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
+from opentelemetry.sdk._logs import LoggerProvider
 from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
 from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-from opentelemetry.instrumentation.logging import LoggingInstrumentor
+from opentelemetry.instrumentation.logging.handler import LoggingHandler
 
 from src.config import settings
 
 logger = structlog.get_logger()
 
 
-def setup_observability(app):
-    """Sets up OpenTelemetry tracing, metrics, logs, and log correlation."""
+def add_otel_trace_id(logger, method_name, event_dict):
+    """Processor that adds the current OTEL trace_id and span_id to the log event."""
+    span_context = trace.get_current_span().get_span_context()
+    if span_context.is_valid:
+        event_dict["trace_id"] = format(span_context.trace_id, "032x")
+        event_dict["span_id"] = format(span_context.span_id, "016x")
+    return event_dict
 
-    resource = Resource.create(
-        {
-            "service.name": settings.otel_service_name,
-        }
-    )
 
-    # --- Tracing & Metrics Setup (unchanged) ---
-    tracer_provider = TracerProvider(resource=resource)
-    otlp_trace_exporter = OTLPSpanExporter(
-        endpoint=settings.otel_exporter_otlp_endpoint, insecure=True
-    )
-    span_processor = BatchSpanProcessor(otlp_trace_exporter)
-    tracer_provider.add_span_processor(span_processor)
-    trace.set_tracer_provider(tracer_provider)
-
-    otlp_metric_exporter = OTLPMetricExporter(
-        endpoint=settings.otel_exporter_otlp_endpoint, insecure=True
-    )
-    reader = PeriodicExportingMetricReader(otlp_metric_exporter)
-    meter_provider = MeterProvider(resource=resource, metric_readers=[reader])
-    metrics.set_meter_provider(meter_provider)
-
-    # --- Logging Setup ---
-    logger_provider = LoggerProvider(resource=resource)
-    _logs.set_logger_provider(logger_provider)
-    otlp_log_exporter = OTLPLogExporter(
-        endpoint=settings.otel_exporter_otlp_endpoint, insecure=True
-    )
-    logger_provider.add_log_record_processor(BatchLogRecordProcessor(otlp_log_exporter))
-
-    # Define common processors
+def get_logging_config():
     shared_processors = [
         structlog.contextvars.merge_contextvars,
+        add_otel_trace_id,
         structlog.stdlib.add_log_level,
         structlog.stdlib.add_logger_name,
         structlog.processors.TimeStamper(fmt="iso"),
@@ -62,34 +39,60 @@ def setup_observability(app):
         structlog.processors.format_exc_info,
     ]
 
-    # ProcessorFormatter allows us to format standard library logs (e.g. from uvicorn)
-    # the same way as structlog logs.
-    formatter = structlog.stdlib.ProcessorFormatter(
-        processor=structlog.processors.JSONRenderer(),
-        foreign_pre_chain=shared_processors,
+    resource = Resource.create({"service.name": settings.otel_service_name})
+    logger_provider = LoggerProvider(resource=resource)
+    _logs.set_logger_provider(logger_provider)
+
+    exporter = OTLPLogExporter(
+        endpoint=settings.otel_exporter_otlp_endpoint, insecure=True
     )
+    logger_provider.add_log_record_processor(BatchLogRecordProcessor(exporter))
 
-    # Bridge standard logging to OTEL
-    otel_handler = LoggingHandler(level=logging.NOTSET, logger_provider=logger_provider)
-    otel_handler.setFormatter(formatter)
+    return {
+        "version": 1,
+        "disable_existing_loggers": True,
+        "formatters": {
+            "json": {
+                "()": structlog.stdlib.ProcessorFormatter,
+                "processor": structlog.processors.JSONRenderer(),
+                "foreign_pre_chain": shared_processors,
+            },
+        },
+        "handlers": {
+            "console": {
+                "class": "logging.StreamHandler",
+                "formatter": "json",
+            },
+            "otel": {
+                "class": "opentelemetry.instrumentation.logging.handler.LoggingHandler",
+                "level": "NOTSET",
+                "logger_provider": logger_provider,
+                "formatter": "json",
+            },
+        },
+        "loggers": {
+            "": {
+                "handlers": ["console", "otel"],
+                "level": settings.log_level.upper(),
+            },
+        },
+    }
 
-    # Console handler for local visibility
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(formatter)
 
-    root_logger = logging.getLogger()
-    # Clear existing handlers to avoid duplicates (important for uvicorn)
-    for h in root_logger.handlers[:]:
-        root_logger.removeHandler(h)
-    root_logger.addHandler(otel_handler)
-    root_logger.addHandler(console_handler)
+def setup_logging():
+    config = get_logging_config()
+    logging.config.dictConfig(config)
 
-    # Set log level from settings
-    log_level = getattr(logging, settings.log_level.upper(), logging.INFO)
-    root_logger.setLevel(log_level)
-    console_handler.setLevel(log_level)
+    shared_processors = [
+        structlog.contextvars.merge_contextvars,
+        add_otel_trace_id,
+        structlog.stdlib.add_log_level,
+        structlog.stdlib.add_logger_name,
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.StackInfoRenderer(),
+        structlog.processors.format_exc_info,
+    ]
 
-    # --- Structlog Configuration ---
     structlog.configure(
         processors=shared_processors
         + [
@@ -101,12 +104,26 @@ def setup_observability(app):
         cache_logger_on_first_use=True,
     )
 
-    # --- Instrumentation ---
-    LoggingInstrumentor().instrument(set_logging_format=False)
-    FastAPIInstrumentor.instrument_app(app)
 
-    logger.debug(
-        "observability_initialized",
-        endpoint=settings.otel_exporter_otlp_endpoint,
-        service_name=settings.otel_service_name,
+def instrument_app(app):
+    resource = Resource.create({"service.name": settings.otel_service_name})
+
+    tp = TracerProvider(resource=resource)
+    tp.add_span_processor(
+        BatchSpanProcessor(
+            OTLPSpanExporter(
+                endpoint=settings.otel_exporter_otlp_endpoint, insecure=True
+            )
+        )
     )
+    trace.set_tracer_provider(tp)
+
+    reader = PeriodicExportingMetricReader(
+        OTLPMetricExporter(endpoint=settings.otel_exporter_otlp_endpoint, insecure=True)
+    )
+    metrics.set_meter_provider(
+        MeterProvider(resource=resource, metric_readers=[reader])
+    )
+
+    FastAPIInstrumentor.instrument_app(app)
+    logger.debug("app_instrumentation_complete")

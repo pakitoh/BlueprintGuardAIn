@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Dict, Any
 
+
 @dataclass(frozen=True)
 class CodeChange:
     repository: str
@@ -10,6 +11,7 @@ class CodeChange:
     event_type: str
     raw_payload: Dict[str, Any]
     timestamp: datetime = field(default_factory=datetime.now)
+
 
 @dataclass(frozen=True)
 class AnalysisResult:

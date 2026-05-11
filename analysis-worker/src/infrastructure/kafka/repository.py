@@ -4,6 +4,7 @@ from aiokafka import AIOKafkaProducer
 from src.domain.entities import AnalysisResult
 from src.domain.ports import AnalysisRepository
 
+
 class KafkaAnalysisRepository(AnalysisRepository):
     def __init__(self, producer: AIOKafkaProducer, topic: str):
         self.producer = producer
