@@ -11,6 +11,10 @@ class Settings(BaseSettings):
     kafka_bootstrap_servers: str = "localhost:9094"
     webhook_events_topic: str = "webhook-events"
 
+    # Observability
+    otel_exporter_otlp_endpoint: str = "http://localhost:4317"
+    otel_service_name: str = "ingestion-service"
+
     # Pydantic Settings configuration
     # env_file_encoding is useful for cross-platform compatibility
     model_config = SettingsConfigDict(
