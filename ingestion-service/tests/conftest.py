@@ -1,6 +1,7 @@
 import pytest
 from unittest.mock import AsyncMock
 
+
 @pytest.fixture(autouse=True)
 def mock_kafka_producer(mocker):
     """
@@ -9,11 +10,11 @@ def mock_kafka_producer(mocker):
     """
     # Patch the producer where it is imported/used in main.py
     mock_class = mocker.patch("src.main.AIOKafkaProducer")
-    
+
     # Configure the instance returned by the class
     mock_instance = mock_class.return_value
     mock_instance.start = AsyncMock()
     mock_instance.stop = AsyncMock()
     mock_instance.send_and_wait = AsyncMock()
-    
+
     return mock_instance

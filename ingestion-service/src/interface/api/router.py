@@ -38,7 +38,7 @@ async def github_webhook(
     try:
         await use_case.execute(payload, event_type=x_github_event)
     except MappingError as e:
-        logger.error("webhook_processing_failed", error=str(e))
+        logger.warning("webhook_processing_failed", error=str(e))
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error("unexpected_error", error=str(e))

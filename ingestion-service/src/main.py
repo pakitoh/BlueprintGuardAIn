@@ -16,7 +16,7 @@ async def lifespan(app: FastAPI):
     setup_observability(app)
 
     # Composition Root: Initialize global infrastructure
-    logger.info("starting_kafka_producer", servers=settings.kafka_bootstrap_servers)
+    logger.debug("starting_kafka_producer", servers=settings.kafka_bootstrap_servers)
     producer = AIOKafkaProducer(bootstrap_servers=settings.kafka_bootstrap_servers)
     await producer.start()
 
@@ -26,7 +26,7 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
-        logger.info("stopping_kafka_producer")
+        logger.debug("stopping_kafka_producer")
         await producer.stop()
 
 
@@ -38,4 +38,5 @@ app.include_router(router)
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # log_config=None prevents uvicorn from overriding our custom logging setup
+    uvicorn.run(app, host="0.0.0.0", port=8000, log_config=None)
