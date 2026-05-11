@@ -74,17 +74,41 @@ cd action-worker && uv run python -m src.main
 ## 🛠️ Simulation & Testing
 
 ### Simulate GitHub Webhooks
-You can simulate incoming events from GitHub using the provided script:
+Use the simulation script to generate traffic. It supports random data and continuous execution.
 
-**Simulate a Push:**
+**Quick Test (Single Event):**
 ```bash
-uv run scripts/simulate_webhook.py push
+uv run scripts/simulate_webhook.py --count 1
 ```
 
-**Simulate a Pull Request:**
+**Stress Test (Indefinite Events):**
 ```bash
-uv run scripts/simulate_webhook.py pr
+uv run scripts/simulate_webhook.py --delay 0.5
 ```
+
+---
+
+## 📊 Observability & Logging
+
+The platform is fully instrumented using **OpenTelemetry (OTEL)** and **Structlog**, exporting data to a centralized OTLP collector.
+
+### The "Three Pillars"
+*   **Traces:** Full request/event lifecycle visible in **Tempo**.
+*   **Metrics:** "Golden Signals" (latency, error rates, load) exported to **Prometheus**.
+*   **Logs:** Universal JSON logging exported to **Loki**.
+
+### Logging Standards
+Every log message across the system is a **JSON object** (including library logs like Uvicorn or Kafka). We follow a strict severity hierarchy:
+
+| Level | Usage | Example |
+| :--- | :--- | :--- |
+| **DEBUG** | Infrastructure, initialization, and trace details. | `starting_kafka_producer`, `received_message` |
+| **INFO** | Significant **Business Events**. | `webhook_processed_successfully`, `analysis_completed` |
+| **WARN** | Controlled failures or edge cases. | `webhook_unsupported_event` |
+| **ERROR** | Unexpected system failures or crashes. | `kafka_connection_lost`, `unexpected_mapping_error` |
+
+### Log-Trace Correlation
+Every log entry automatically includes a `trace_id` and `span_id`. In Grafana, you can jump from a log error directly to the corresponding trace in Tempo to debug the root cause.
 
 ---
 
