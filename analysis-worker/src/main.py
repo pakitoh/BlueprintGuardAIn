@@ -5,19 +5,20 @@ from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from opentelemetry import trace
 
 from src.config import settings
-from src.infrastructure.observability import setup_logging, instrument_app
+
+# from src.infrastructure.observability import setup_logging, instrument_app
+from src.infrastructure.instrumentation import instrument_app
 from src.infrastructure.kafka.repository import KafkaAnalysisRepository
 from src.application.use_cases.analyze_code_change import AnalyzeCodeChangeUseCase
 from src.domain.entities import CodeChange
 
 # Initialize global logging BEFORE any library can start logging
-setup_logging()
+# setup_logging()
 
 logger = structlog.get_logger()
 
 
 async def run_worker():
-    # Setup OTEL Tracing & Metrics
     instrument_app()
 
     logger.debug(
@@ -39,7 +40,7 @@ async def run_worker():
 
     # Initialize Use Case with Kafka Repository
     repository = KafkaAnalysisRepository(
-        producer=producer, topic=settings.analysis_results_topic
+        producer=producer, topic=settings.results_topic
     )
     use_case = AnalyzeCodeChangeUseCase(repository=repository)
 
