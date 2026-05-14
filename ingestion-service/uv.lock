@@ -326,6 +326,7 @@ dependencies = [
     { name = "fastapi" },
     { name = "opentelemetry-api" },
     { name = "opentelemetry-exporter-otlp" },
+    { name = "opentelemetry-instrumentation-aiokafka" },
     { name = "opentelemetry-instrumentation-fastapi" },
     { name = "opentelemetry-instrumentation-logging" },
     { name = "opentelemetry-sdk" },
@@ -349,6 +350,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.136.1" },
     { name = "opentelemetry-api", specifier = ">=1.41.1" },
     { name = "opentelemetry-exporter-otlp", specifier = ">=1.41.1" },
+    { name = "opentelemetry-instrumentation-aiokafka", specifier = ">=0.62b1" },
     { name = "opentelemetry-instrumentation-fastapi", specifier = ">=0.62b1" },
     { name = "opentelemetry-instrumentation-logging", specifier = ">=0.62b1" },
     { name = "opentelemetry-sdk", specifier = ">=1.41.1" },
@@ -462,6 +464,21 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/52/cb/0523b92c112a6cc70be43724343dc45225d3af134419844d7879a07755d4/opentelemetry_instrumentation-0.62b1.tar.gz", hash = "sha256:90e92a905ba4f84db06ac3aec96701df6c079b2d66e9379f8739f0a1bdcc7f45", size = 34043, upload-time = "2026-04-24T13:22:31.997Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/4d/0f/45adbaea1f81b847cffdcee4f4b5f89297e42facf7fac78c7aaac4c38e75/opentelemetry_instrumentation-0.62b1-py3-none-any.whl", hash = "sha256:976fc6e640f2006599e97429c949e622c108d0c17c2059347d1e6c93c707f257", size = 34163, upload-time = "2026-04-24T13:21:31.722Z" },
+]
+
+[[package]]
+name = "opentelemetry-instrumentation-aiokafka"
+version = "0.62b1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-instrumentation" },
+    { name = "opentelemetry-semantic-conventions" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/94/9b/99b0cb5887e49516725f8073083bbe3471f1fd3586b592db1575a1dcb5e3/opentelemetry_instrumentation_aiokafka-0.62b1.tar.gz", hash = "sha256:1331ff8fd21f3a8afba4c8571a35468cd0f037e6a9a2c44fc7dd902d35423d81", size = 14607, upload-time = "2026-04-24T13:22:35.674Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b0/b8/2e0f89dd95d0e48d8c378b62790f8f65ab8d5dc8fe5964894b7403880bf0/opentelemetry_instrumentation_aiokafka-0.62b1-py3-none-any.whl", hash = "sha256:9d6a5c9ced762e66b3445a2b828b67a2c693989646413be911a6464a3c3adc46", size = 13534, upload-time = "2026-04-24T13:21:36.064Z" },
 ]
 
 [[package]]

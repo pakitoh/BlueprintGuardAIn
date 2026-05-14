@@ -23,10 +23,12 @@ async def test_kafka_repository_should_send_json_to_topic():
 
     # Check if producer.send_and_wait was called with the right topic and serialized bytes
     mock_producer.send_and_wait.assert_called_once()
-    args, _ = mock_producer.send_and_wait.call_args
-    topic, value = args
+    args, kwargs = mock_producer.send_and_wait.call_args
+    topic = args[0]
     assert topic == "test-topic"
-    sent_data = json.loads(value.decode("utf-8"))
+    key = kwargs["key"].decode("utf-8")
+    assert key == "paco/blueprint"
+    sent_data = json.loads(kwargs["value"].decode("utf-8"))
     assert sent_data["repository"] == "paco/blueprint"
     assert sent_data["target_sha"] == "sha123"
 

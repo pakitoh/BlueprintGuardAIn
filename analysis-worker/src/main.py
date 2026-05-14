@@ -3,17 +3,15 @@ import json
 import structlog
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from opentelemetry import trace
+from opentelemetry.instrumentation.aiokafka import AIOKafkaInstrumentor
+
 
 from src.config import settings
 
-# from src.infrastructure.observability import setup_logging, instrument_app
 from src.infrastructure.instrumentation import instrument_app
 from src.infrastructure.kafka.repository import KafkaAnalysisRepository
 from src.application.use_cases.analyze_code_change import AnalyzeCodeChangeUseCase
 from src.domain.entities import CodeChange
-
-# Initialize global logging BEFORE any library can start logging
-# setup_logging()
 
 logger = structlog.get_logger()
 
@@ -25,11 +23,13 @@ async def run_worker():
         "starting_analysis_worker", bootstrap_servers=settings.kafka_bootstrap_servers
     )
 
-    # Initialize Kafka Producer for results
+    # Initialize Kafka Producer
     producer = AIOKafkaProducer(bootstrap_servers=settings.kafka_bootstrap_servers)
+    AIOKafkaInstrumentor().instrument()
+
     await producer.start()
 
-    # Initialize Kafka Consumer for events
+    # Initialize Kafka Consumer
     consumer = AIOKafkaConsumer(
         settings.webhook_events_topic,
         bootstrap_servers=settings.kafka_bootstrap_servers,

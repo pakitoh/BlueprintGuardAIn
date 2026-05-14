@@ -13,6 +13,7 @@ dependencies = [
     "opentelemetry-sdk>=1.41.1",
     "opentelemetry-exporter-otlp>=1.41.1",
     "opentelemetry-instrumentation-logging>=0.62b1",
+    "opentelemetry-instrumentation-aiokafka>=0.62b1",
 ]
 
 [dependency-groups]

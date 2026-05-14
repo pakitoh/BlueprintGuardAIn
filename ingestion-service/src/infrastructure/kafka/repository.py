@@ -16,8 +16,12 @@ class KafkaCodeChangeRepository(CodeChangeRepository):
         """Serializes the CodeChange and sends it to a Kafka topic."""
         try:
             data = asdict(code_change)
-            payload = json.dumps(data).encode("utf-8")
-            await self.producer.send_and_wait(self.topic, payload)
+            await self.producer.send_and_wait(
+                self.topic,
+                key=data["repository"].encode("utf-8"),
+                value=json.dumps(data).encode("utf-8"),
+            )
+
         except asyncio.TimeoutError as e:
             raise RepositoryError(f"Timeout while sending to Kafka: {e}")
         except Exception as e:

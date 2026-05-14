@@ -14,5 +14,8 @@ class KafkaAnalysisRepository(AnalysisRepository):
         data = asdict(result)
         # Convert datetime to string for JSON serialization
         data["timestamp"] = result.timestamp.isoformat()
-        payload = json.dumps(data).encode("utf-8")
-        await self.producer.send_and_wait(self.topic, payload)
+        await self.producer.send_and_wait(
+            self.topic,
+            key=data["repository"].encode("utf-8"),
+            value=json.dumps(data).encode("utf-8"),
+        )

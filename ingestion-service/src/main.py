@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from contextlib import asynccontextmanager
 import structlog
 from aiokafka import AIOKafkaProducer
+from opentelemetry.instrumentation.aiokafka import AIOKafkaInstrumentor
 
 from src.interface.api.router import router
 from src.config import settings
@@ -12,6 +13,8 @@ from src.infrastructure.instrumentation import instrument_app, uvicorn_log_confi
 async def lifespan(app: FastAPI):
     logger.debug("starting_kafka_producer", servers=settings.kafka_bootstrap_servers)
     producer = AIOKafkaProducer(bootstrap_servers=settings.kafka_bootstrap_servers)
+    AIOKafkaInstrumentor().instrument()
+
     await producer.start()
     app.state.kafka_producer = producer
     try:
