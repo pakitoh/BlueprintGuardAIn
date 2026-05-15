@@ -1,0 +1,28 @@
+{
+  "type": "record",
+  "name": "CodeChange",
+  "namespace": "com.blueprint.guardain",
+  "fields": [
+    {
+      "name": "repository",
+      "type": "string"
+    },
+    {
+      "name": "ref",
+      "type": "string"
+    },
+    {
+      "name": "target_sha",
+      "type": "string"
+    },
+    {
+      "name": "event_type",
+      "type": "string"
+    },
+    {
+      "name": "raw_payload",
+      "type": "string",
+      "doc": "Stringified JSON payload"
+    }
+  ]
+}

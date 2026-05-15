@@ -1,0 +1,31 @@
+{
+  "type": "record",
+  "name": "AnalysisResult",
+  "namespace": "com.blueprint.guardain",
+  "fields": [
+    {
+      "name": "repository",
+      "type": "string"
+    },
+    {
+      "name": "sha",
+      "type": "string"
+    },
+    {
+      "name": "status",
+      "type": "string"
+    },
+    {
+      "name": "findings",
+      "type": {
+        "type": "array",
+        "items": "string"
+      }
+    },
+    {
+      "name": "timestamp",
+      "type": "string",
+      "doc": "ISO-8601 formatted timestamp"
+    }
+  ]
+}
