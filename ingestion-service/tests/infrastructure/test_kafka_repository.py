@@ -1,16 +1,59 @@
 import asyncio
 import pytest
+import struct
 import json
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 from src.domain.entities.code_change import CodeChange
 from src.infrastructure.kafka.repository import KafkaCodeChangeRepository
 from src.domain.exceptions import RepositoryError
 
 
+@pytest.fixture
+def mock_producer():
+    """Mock Kafka producer with Async methods."""
+    return AsyncMock()
+
+
+@pytest.fixture
+def mock_schema_client():
+    """Mock Schema Registry client."""
+    client = MagicMock()
+    client.register.return_value = 123  # Mock Schema ID
+    return client
+
+
+@pytest.fixture
+def dummy_schema():
+    """A minimal valid Avro schema matching the CodeChange structure."""
+    return json.dumps(
+        {
+            "type": "record",
+            "name": "CodeChange",
+            "fields": [
+                {"name": "repository", "type": "string"},
+                {"name": "ref", "type": "string"},
+                {"name": "target_sha", "type": "string"},
+                {"name": "event_type", "type": "string"},
+                {"name": "raw_payload", "type": "string"},
+            ],
+        }
+    )
+
+
+@pytest.fixture
+def repo(mock_producer, mock_schema_client, dummy_schema):
+    """The repository instance under test."""
+    return KafkaCodeChangeRepository(
+        producer=mock_producer,
+        topic="test-topic",
+        schema_client=mock_schema_client,
+        schema_str=dummy_schema,
+    )
+
+
 @pytest.mark.asyncio
-async def test_kafka_repository_should_send_json_to_topic():
-    mock_producer = AsyncMock()
-    repo = KafkaCodeChangeRepository(producer=mock_producer, topic="test-topic")
+async def test_kafka_repository_should_send_avro_to_topic(repo, mock_producer):
+    # Arrange
     change = CodeChange(
         repository="paco/blueprint",
         ref="main",
@@ -19,53 +62,60 @@ async def test_kafka_repository_should_send_json_to_topic():
         raw_payload={"some": "data"},
     )
 
+    # Act
     await repo.save(change)
 
-    # Check if producer.send_and_wait was called with the right topic and serialized bytes
+    # Assert
     mock_producer.send_and_wait.assert_called_once()
     args, kwargs = mock_producer.send_and_wait.call_args
-    topic = args[0]
-    assert topic == "test-topic"
-    key = kwargs["key"].decode("utf-8")
-    assert key == "paco/blueprint"
-    sent_data = json.loads(kwargs["value"].decode("utf-8"))
-    assert sent_data["repository"] == "paco/blueprint"
-    assert sent_data["target_sha"] == "sha123"
+
+    # 1. Verify Topic
+    assert args[0] == "test-topic"
+
+    # 2. Verify Key (Repository Name)
+    assert kwargs["key"] == b"paco/blueprint"
+
+    # 3. Verify Avro Wire Format (Magic Byte + Schema ID)
+    value = kwargs["value"]
+    magic_byte, schema_id = struct.unpack(">bi", value[:5])
+    assert magic_byte == 0
+    assert schema_id == 123
+    assert len(value) > 5  # Ensure there is binary data after the header
 
 
 @pytest.mark.asyncio
-async def test_kafka_repository_should_raise_repository_error_on_connection_failure():
-    mock_producer = AsyncMock()
+async def test_kafka_repository_should_raise_repository_error_on_connection_failure(
+    repo, mock_producer
+):
+    # Arrange
     mock_producer.send_and_wait.side_effect = Exception("Kafka connection failed")
-    repo = KafkaCodeChangeRepository(producer=mock_producer, topic="test-topic")
     change = CodeChange(
-        repository="paco/blueprint",
-        ref="main",
-        target_sha="sha123",
+        repository="repo",
+        ref="ref",
+        target_sha="sha",
         event_type="push",
         raw_payload={},
     )
 
-    with pytest.raises(RepositoryError) as exc:
+    # Act & Assert
+    with pytest.raises(RepositoryError, match="Failed to save code change to Kafka"):
         await repo.save(change)
-
-    assert "Failed to save code change to Kafka" in str(exc.value)
 
 
 @pytest.mark.asyncio
-async def test_kafka_repository_should_raise_repository_error_on_timeout():
-    mock_producer = AsyncMock()
+async def test_kafka_repository_should_raise_repository_error_on_timeout(
+    repo, mock_producer
+):
+    # Arrange
     mock_producer.send_and_wait.side_effect = asyncio.TimeoutError()
-    repo = KafkaCodeChangeRepository(producer=mock_producer, topic="test-topic")
     change = CodeChange(
-        repository="paco/blueprint",
-        ref="main",
-        target_sha="sha123",
+        repository="repo",
+        ref="ref",
+        target_sha="sha",
         event_type="push",
         raw_payload={},
     )
 
-    with pytest.raises(RepositoryError) as exc:
+    # Act & Assert
+    with pytest.raises(RepositoryError, match="Timeout"):
         await repo.save(change)
-
-    assert "Timeout" in str(exc.value)

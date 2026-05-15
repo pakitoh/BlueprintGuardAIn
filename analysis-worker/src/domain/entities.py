@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 
 @dataclass(frozen=True)
@@ -18,5 +18,5 @@ class AnalysisResult:
     repository: str
     sha: str
     status: str  # e.g., "COMPLETED", "FAILED"
-    findings: str
+    findings: List[str]
     timestamp: datetime = field(default_factory=datetime.now)

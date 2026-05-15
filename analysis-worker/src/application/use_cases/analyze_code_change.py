@@ -21,7 +21,11 @@ class AnalyzeCodeChangeUseCase:
         )
 
         # Dummy analysis logic
-        findings = f"Architectural validation for {code_change.repository} at {code_change.target_sha} PASSED."
+        findings = [
+            f"Architectural validation for {code_change.repository} started.",
+            f"Target SHA {code_change.target_sha} analyzed.",
+            "Result: PASSED.",
+        ]
 
         result = AnalysisResult(
             repository=code_change.repository,

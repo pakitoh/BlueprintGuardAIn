@@ -28,4 +28,4 @@ async def test_analyze_code_change_use_case_success():
     assert result.repository == "paco/blueprint"
     assert result.sha == "sha123"
     assert result.status == "COMPLETED"
-    assert "PASSED" in result.findings
+    assert any("PASSED" in finding for finding in result.findings)

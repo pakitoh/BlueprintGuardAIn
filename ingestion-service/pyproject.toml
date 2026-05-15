@@ -7,6 +7,7 @@ requires-python = ">=3.12"
 dependencies = [
     "aiokafka>=0.14.0",
     "fastapi>=0.136.1",
+    "fastavro>=1.12.2",
     "opentelemetry-api>=1.41.1",
     "opentelemetry-exporter-otlp>=1.41.1",
     "opentelemetry-instrumentation-aiokafka>=0.62b1",
@@ -15,6 +16,7 @@ dependencies = [
     "opentelemetry-sdk>=1.41.1",
     "pydantic>=2.13.4",
     "pydantic-settings>=2.14.1",
+    "python-schema-registry-client>=2.6.1",
     "structlog>=25.5.0",
     "uvicorn>=0.46.0",
 ]

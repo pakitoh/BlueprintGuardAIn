@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 import structlog
 from aiokafka import AIOKafkaProducer
 from opentelemetry.instrumentation.aiokafka import AIOKafkaInstrumentor
+from schema_registry.client import SchemaRegistryClient
 
 from src.interface.api.router import router
 from src.config import settings
@@ -16,7 +17,19 @@ async def lifespan(app: FastAPI):
     AIOKafkaInstrumentor().instrument()
 
     await producer.start()
+
+    # Initialize Schema Registry Client
+    schema_registry_client = SchemaRegistryClient(url=settings.schema_registry_url)
+
+    # Load CodeChange Schema
+    with open("../schemas/CodeChange.avsc", "r") as f:
+        code_change_schema = f.read()
+
+    # Store in app state
     app.state.kafka_producer = producer
+    app.state.schema_registry_client = schema_registry_client
+    app.state.code_change_schema = code_change_schema
+
     try:
         yield
     finally:

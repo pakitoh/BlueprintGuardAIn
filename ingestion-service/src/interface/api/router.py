@@ -14,11 +14,19 @@ router = APIRouter()
 def get_process_webhook_use_case(request: Request) -> ProcessWebhookUseCase:
     """Dependency provider for the ProcessWebhookUseCase."""
     kafka_producer = getattr(request.app.state, "kafka_producer", None)
-    if kafka_producer is None:
-        raise RuntimeError("Kafka producer not initialized in app state")
+    schema_registry_client = getattr(request.app.state, "schema_registry_client", None)
+    code_change_schema = getattr(request.app.state, "code_change_schema", None)
+
+    if any(
+        x is None for x in [kafka_producer, schema_registry_client, code_change_schema]
+    ):
+        raise RuntimeError("Global infrastructure not initialized in app state")
 
     repository = KafkaCodeChangeRepository(
-        producer=kafka_producer, topic=settings.webhook_events_topic
+        producer=kafka_producer,
+        topic=settings.webhook_events_topic,
+        schema_client=schema_registry_client,
+        schema_str=code_change_schema,
     )
     return ProcessWebhookUseCase(repository=repository)
 
