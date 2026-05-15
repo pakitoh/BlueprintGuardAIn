@@ -9,31 +9,50 @@ from schema_registry.client import SchemaRegistryClient
 from fastavro import schemaless_reader
 
 from src.config import settings
-from src.infrastructure.observability import setup_logging, instrument_app
+from src.infrastructure.instrumentation import setup_logging, instrument_app
 from src.infrastructure.kafka.repository import KafkaAnalysisRepository
 from src.application.use_cases.analyze_code_change import AnalyzeCodeChangeUseCase
 from src.domain.entities import CodeChange
 
-# Initialize global logging BEFORE any library can start logging
-setup_logging()
-
 logger = structlog.get_logger()
 
 
+# Local cache for parsed Avro schemas to avoid redundant network calls and JSON parsing
+SCHEMA_CACHE = {}
+
 def deserialize_avro(payload: bytes, schema_client: SchemaRegistryClient) -> dict:
-    """Decodes Avro binary format (Confluent wire format)."""
-    # 1. Read Magic Byte (1 byte) and Schema ID (4 bytes)
-    magic, schema_id = struct.unpack(">bi", payload[:5])
+    """
+    Decodes Avro binary format with local caching and robust error handling.
+    """
+    if len(payload) < 5:
+        raise ValueError(f"Payload too short ({len(payload)} bytes). Expected at least 5 bytes for Avro header.")
+
+    # 1. Extract Header (Magic Byte + 4-byte Schema ID)
+    try:
+        magic, schema_id = struct.unpack(">bi", payload[:5])
+    except struct.error as e:
+        raise ValueError(f"Malformed Avro header: {e}")
+
     if magic != 0:
-        raise ValueError(f"Unknown magic byte: {magic}")
+        raise ValueError(f"Unknown magic byte: {magic}. Only Confluent Wire Format (byte 0) is supported.")
 
-    # 2. Get Schema from Registry (cached)
-    schema_str = schema_client.get_by_id(schema_id).schema
-    parsed_schema = json.loads(schema_str)
+    # 2. Get Parsed Schema from Cache or Registry
+    if schema_id not in SCHEMA_CACHE:
+        try:
+            # Registry client returns an AvroSchema object
+            avro_schema = schema_client.get_by_id(schema_id)
+            # The .schema attribute is already a parsed dictionary
+            SCHEMA_CACHE[schema_id] = avro_schema.schema
+            logger.debug("schema_cached", schema_id=schema_id)
+        except Exception as e:
+            raise RuntimeError(f"Failed to retrieve/parse schema {schema_id} from registry: {e}")
 
-    # 3. Decode binary data
-    bio = io.BytesIO(payload[5:])
-    return schemaless_reader(bio, parsed_schema)
+    # 3. Decode binary data using the cached schema
+    try:
+        bio = io.BytesIO(payload[5:])
+        return schemaless_reader(bio, SCHEMA_CACHE[schema_id])
+    except Exception as e:
+        raise ValueError(f"Avro decoding failed for schema {schema_id}: {e}")
 
 
 async def run_worker():
@@ -69,7 +88,7 @@ async def run_worker():
     # Initialize Use Case with Kafka Repository
     repository = KafkaAnalysisRepository(
         producer=producer,
-        topic=settings.analysis_results_topic,
+        topic=settings.results_topic,
         schema_client=schema_client,
         schema_str=analysis_result_schema,
     )

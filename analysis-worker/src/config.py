@@ -11,6 +11,7 @@ class Settings(BaseSettings):
 
     # Kafka
     kafka_bootstrap_servers: str = "localhost:9094"
+    schema_registry_url: str = "http://localhost:8081"
     webhook_events_topic: str = "webhook-events"
     results_topic: str = "analysis-results"
     consumer_group_id: str = "analysis-worker-group"
