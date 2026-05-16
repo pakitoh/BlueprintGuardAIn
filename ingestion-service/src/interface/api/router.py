@@ -4,8 +4,6 @@ import structlog
 from src.interface.api.dto import GithubWebhookDTO
 from src.application.use_cases.process_webhook import ProcessWebhookUseCase
 from src.domain.exceptions import MappingError
-from src.infrastructure.kafka.repository import KafkaCodeChangeRepository
-from src.config import settings
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -13,22 +11,13 @@ router = APIRouter()
 
 def get_process_webhook_use_case(request: Request) -> ProcessWebhookUseCase:
     """Dependency provider for the ProcessWebhookUseCase."""
-    kafka_producer = getattr(request.app.state, "kafka_producer", None)
-    schema_registry_client = getattr(request.app.state, "schema_registry_client", None)
-    code_change_schema = getattr(request.app.state, "code_change_schema", None)
+    # We now fetch the pure Domain Repository from the app state
+    code_change_repo = getattr(request.app.state, "code_change_repo", None)
 
-    if any(
-        x is None for x in [kafka_producer, schema_registry_client, code_change_schema]
-    ):
-        raise RuntimeError("Global infrastructure not initialized in app state")
+    if code_change_repo is None:
+        raise RuntimeError("CodeChangeRepository not initialized in app state")
 
-    repository = KafkaCodeChangeRepository(
-        producer=kafka_producer,
-        topic=settings.webhook_events_topic,
-        schema_client=schema_registry_client,
-        schema_str=code_change_schema,
-    )
-    return ProcessWebhookUseCase(repository=repository)
+    return ProcessWebhookUseCase(repository=code_change_repo)
 
 
 @router.get("/health")

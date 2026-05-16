@@ -8,28 +8,41 @@ from schema_registry.client import SchemaRegistryClient
 from fastavro import schemaless_writer
 
 from src.domain.entities import AnalysisResult
-from src.domain.ports import AnalysisRepository
-from src.domain.exceptions import (
-    RepositoryError,
-)  # Assuming this exists or using generic
+from src.domain.ports.analysis_result_repository import AnalysisResultRepository
+from src.domain.exceptions import RepositoryError
 
 logger = structlog.get_logger()
 
 
-class KafkaAnalysisRepository(AnalysisRepository):
+class KafkaAnalysisResultRepository(AnalysisResultRepository):
     def __init__(
         self,
-        producer: AIOKafkaProducer,
+        bootstrap_servers: str,
         topic: str,
         schema_client: SchemaRegistryClient,
         schema_str: str,
     ):
-        self.producer = producer
+        self.bootstrap_servers = bootstrap_servers
         self.topic = topic
         self.schema_client = schema_client
         self.schema_str = schema_str
+        self.producer = None  # Created in start()
         self._schema_id = None
         self._parsed_schema = None
+
+    async def start(self) -> None:
+        """Initializes and starts the underlying Kafka producer."""
+        try:
+            self.producer = AIOKafkaProducer(bootstrap_servers=self.bootstrap_servers)
+            await self.producer.start()
+            logger.debug("kafka_producer_started")
+        except Exception as e:
+            raise RepositoryError(f"Failed to start Kafka producer: {e}")
+
+    async def stop(self) -> None:
+        if self.producer:
+            await self.producer.stop()
+            logger.debug("kafka_producer_stopped")
 
     def _ensure_schema_registered(self):
         if self._schema_id is not None:
@@ -39,14 +52,8 @@ class KafkaAnalysisRepository(AnalysisRepository):
             subject = f"{self.topic}-value"
             self._schema_id = self.schema_client.register(subject, self.schema_str)
             self._parsed_schema = json.loads(self.schema_str)
-            logger.debug(
-                "kafka_schema_registered", topic=self.topic, schema_id=self._schema_id
-            )
         except Exception as e:
-            logger.error("schema_registration_failed", error=str(e), topic=self.topic)
-            raise RuntimeError(
-                f"Failed to register Avro schema for topic {self.topic}: {e}"
-            )
+            raise RepositoryError(f"Failed to register Avro schema: {e}")
 
     def _serialize_avro(self, data: dict) -> bytes:
         try:
@@ -56,32 +63,22 @@ class KafkaAnalysisRepository(AnalysisRepository):
             schemaless_writer(out, self._parsed_schema, data)
             return out.getvalue()
         except Exception as e:
-            logger.error("avro_serialization_failed", error=str(e))
-            raise RuntimeError(f"Failed to serialize data to Avro: {e}")
+            raise RepositoryError(f"Avro serialization failed: {e}")
 
     async def save(self, result: AnalysisResult) -> None:
-        """Serializes the AnalysisResult and sends it to Kafka with a key."""
+        if not self.producer:
+            raise RepositoryError("Repository not started. Call start() first.")
+
         try:
             self._ensure_schema_registered()
-
-            # 1. Prepare data (Avro doesn't handle datetime objects natively)
             data = asdict(result)
             data["timestamp"] = result.timestamp.isoformat()
-
-            # 2. Serialize
             payload = self._serialize_avro(data)
-
-            # 3. Send with Repository Name as Key
             key = result.repository.encode("utf-8")
 
             await self.producer.send_and_wait(self.topic, value=payload, key=key)
-            logger.info(
-                "analysis_result_sent_to_kafka",
-                repo=result.repository,
-                topic=self.topic,
-                schema_id=self._schema_id,
-            )
+            logger.info("analysis_result_sent", repo=result.repository)
 
         except Exception as e:
-            logger.error("kafka_produce_failed", error=str(e), topic=self.topic)
-            raise e
+            logger.error("kafka_produce_failed", error=str(e))
+            raise RepositoryError(f"Failed to save analysis result: {e}")

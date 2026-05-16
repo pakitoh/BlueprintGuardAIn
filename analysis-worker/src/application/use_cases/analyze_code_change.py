@@ -1,38 +1,37 @@
 import structlog
 from src.domain.entities import CodeChange, AnalysisResult
-from src.domain.ports import AnalysisRepository
+from src.domain.ports.code_change_repository import CodeChangeRepository
+from src.domain.ports.analysis_result_repository import AnalysisResultRepository
 
 logger = structlog.get_logger()
 
 
 class AnalyzeCodeChangeUseCase:
-    def __init__(self, repository: AnalysisRepository):
-        self.repository = repository
+    def __init__(self, source: CodeChangeRepository, sink: AnalysisResultRepository):
+        self._source = source
+        self._sink = sink
 
-    async def execute(self, code_change: CodeChange) -> None:
-        """
-        Dummy processing placeholder.
-        In a real scenario, this would involve LLM analysis.
-        """
+    async def run(self) -> None:
+        async for change in self._source.listen():
+            try:
+                await self._process(change)
+            except Exception as e:
+                logger.error("processing_failed", error=str(e), repo=change.repository)
+
+    async def _process(self, change: CodeChange) -> None:
         logger.info(
-            "analyzing_code_change",
-            repo=code_change.repository,
-            sha=code_change.target_sha,
+            "analyzing_code_change", repo=change.repository, sha=change.target_sha
         )
-
-        # Dummy analysis logic
         findings = [
-            f"Architectural validation for {code_change.repository} started.",
-            f"Target SHA {code_change.target_sha} analyzed.",
+            f"Architectural validation for {change.repository} started.",
+            f"Target SHA {change.target_sha} analyzed.",
             "Result: PASSED.",
         ]
-
         result = AnalysisResult(
-            repository=code_change.repository,
-            sha=code_change.target_sha,
+            repository=change.repository,
+            sha=change.target_sha,
             status="COMPLETED",
             findings=findings,
         )
-
-        await self.repository.save(result)
+        await self._sink.save(result)
         logger.info("analysis_completed", repo=result.repository, status=result.status)

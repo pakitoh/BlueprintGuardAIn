@@ -2,7 +2,7 @@ import logging
 import structlog
 import sys
 from opentelemetry import trace, metrics
-from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
+from opentelemetry.sdk._logs import LoggerProvider
 from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
@@ -13,17 +13,21 @@ from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
 from opentelemetry.instrumentation.logging import LoggingInstrumentor
+from opentelemetry.instrumentation.logging.handler import LoggingHandler
 
 from src.config import settings
 
 logger = structlog.get_logger()
 
 
+def setup_resource():
+    return Resource.create({"service.name": settings.app_name})
+
+
 def add_otel_trace_id(_, __, event_dict):
     """Processor that adds the current OTEL trace_id and span_id to the log event."""
     span = trace.get_current_span()
     if not span.is_recording():
-        event_dict["span"] = None
         return event_dict
     span_context = span.get_span_context()
     if span_context.is_valid:
@@ -99,14 +103,7 @@ def setup_logging(resource):
     logger.debug("logging_initialized", service_name=settings.app_name)
 
 
-def instrument_app():
-    """Sets up network-level observability (Traces & Metrics)."""
-    resource = Resource.create({"service.name": settings.app_name})
-
-    # Access log
-    setup_logging(resource)
-
-    # Tracing
+def setup_tracing(resource):
     tracer_provider = TracerProvider(resource=resource)
     tracer_provider.add_span_processor(
         BatchSpanProcessor(
@@ -117,7 +114,8 @@ def instrument_app():
     )
     trace.set_tracer_provider(tracer_provider)
 
-    # Metrics
+
+def setup_metrics(resource):
     reader = PeriodicExportingMetricReader(
         OTLPMetricExporter(endpoint=settings.otel_exporter_otlp_endpoint, insecure=True)
     )
@@ -125,4 +123,11 @@ def instrument_app():
         MeterProvider(resource=resource, metric_readers=[reader])
     )
 
+
+def instrument_app():
+    """Sets up network-level observability (Logs, Traces & Metrics)."""
+    resource = setup_resource()
+    setup_logging(resource)
+    setup_tracing(resource)
+    setup_metrics(resource)
     logger.debug("app_instrumentation_complete")

@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
-from src.domain.entities.code_change import CodeChange
+from src.domain.entities import AnalysisResult
 
 
-class CodeChangeRepository(ABC):
+class AnalysisResultRepository(ABC):
     @abstractmethod
     async def start(self) -> None:
         """Starts the repository infrastructure."""
@@ -14,6 +14,6 @@ class CodeChangeRepository(ABC):
         pass
 
     @abstractmethod
-    async def save(self, code_change: CodeChange) -> None:
-        """Persists a CodeChange event."""
+    async def save(self, result: AnalysisResult) -> None:
+        """Saves an analysis result."""
         pass

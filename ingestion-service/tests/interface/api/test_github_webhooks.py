@@ -1,21 +1,27 @@
 import pytest
 
+REPOSITORY = "user/project"
+SHA = "sha123abc"
+REF = "refs/heads/main"
+EVENT_TYPE = "push"
+
 
 def test_webhook_endpoint_success(client, mock_use_case):
     payload = {
-        "ref": "refs/heads/main",
-        "after": "sha123",
+        "ref": REF,
+        "after": SHA,
         "repository": {
-            "full_name": "paco/repo",
-            "html_url": "https://github.com/paco/repo",
+            "full_name": REPOSITORY,
+            "html_url": f"https://github.com/{REPOSITORY}",
         },
     }
-    headers = {"X-GitHub-Event": "push"}
+    headers = {"X-GitHub-Event": EVENT_TYPE}
+
     response = client.post("/webhooks/github", json=payload, headers=headers)
 
     assert response.status_code == 202
     assert response.json() == {"status": "accepted"}
-    mock_use_case.execute.assert_called_once_with(payload, event_type="push")
+    mock_use_case.execute.assert_called_once_with(payload, event_type=EVENT_TYPE)
 
 
 def test_webhook_endpoint_unsupported_event(client, mock_use_case):
@@ -26,11 +32,12 @@ def test_webhook_endpoint_unsupported_event(client, mock_use_case):
 
     payload = {
         "repository": {
-            "full_name": "paco/repo",
-            "html_url": "https://github.com/paco/repo",
+            "full_name": REPOSITORY,
+            "html_url": f"https://github.com/{REPOSITORY}",
         }
     }
     headers = {"X-GitHub-Event": "unsupported"}
+
     response = client.post("/webhooks/github", json=payload, headers=headers)
 
     assert response.status_code == 400

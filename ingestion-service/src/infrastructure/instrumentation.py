@@ -64,7 +64,7 @@ SHARED_PROCESSORS = [
 ]
 
 
-def setup_logging(resource):
+def setup_logging(resource, app):
     """Configures global logging with native OTEL bridge."""
 
     # Configure logging levels
@@ -116,6 +116,9 @@ def setup_logging(resource):
     # Bridge for libraries that don't use standard propagation
     LoggingInstrumentor().instrument(set_logging_format=False)
 
+    # Access log
+    app.add_middleware(AccessLogMiddleware)
+
     logger.debug("logging_initialized", service_name=settings.app_name)
 
 
@@ -132,14 +135,7 @@ uvicorn_log_config = {
 }
 
 
-def instrument_app(app):
-    """Sets up network-level observability (Traces & Metrics)."""
-    resource = Resource.create({"service.name": settings.app_name})
-
-    # Access log
-    setup_logging(resource)
-    app.add_middleware(AccessLogMiddleware)
-
+def setup_tracing(resource):
     # Tracing
     tracer_provider = TracerProvider(resource=resource)
     tracer_provider.add_span_processor(
@@ -151,6 +147,8 @@ def instrument_app(app):
     )
     trace.set_tracer_provider(tracer_provider)
 
+
+def setup_metrics(resource):
     # Metrics
     reader = PeriodicExportingMetricReader(
         OTLPMetricExporter(endpoint=settings.otel_exporter_otlp_endpoint, insecure=True)
@@ -158,6 +156,15 @@ def instrument_app(app):
     metrics.set_meter_provider(
         MeterProvider(resource=resource, metric_readers=[reader])
     )
+
+
+def instrument_app(app):
+    """Sets up network-level observability (Logs, Traces & Metrics)."""
+    resource = Resource.create({"service.name": settings.app_name})
+
+    setup_logging(resource, app)
+    setup_tracing(resource)
+    setup_metrics(resource)
 
     # FastAPI standard instrumentation
     FastAPIInstrumentor.instrument_app(app)

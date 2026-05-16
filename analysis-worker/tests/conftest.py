@@ -7,8 +7,12 @@ def mock_kafka(mocker):
     """
     Globally patches Kafka Consumer and Producer to prevent network calls during tests.
     """
-    mock_consumer_class = mocker.patch("aiokafka.AIOKafkaConsumer")
-    mock_producer_class = mocker.patch("aiokafka.AIOKafkaProducer")
+    mock_consumer_class = mocker.patch(
+        "src.infrastructure.kafka.code_change_repository.AIOKafkaConsumer"
+    )
+    mock_producer_class = mocker.patch(
+        "src.infrastructure.kafka.analysis_result_repository.AIOKafkaProducer"
+    )
 
     mock_consumer = mock_consumer_class.return_value
     mock_consumer.start = AsyncMock()

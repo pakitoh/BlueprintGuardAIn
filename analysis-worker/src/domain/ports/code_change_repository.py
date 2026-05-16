@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
-from src.domain.entities.code_change import CodeChange
+from typing import AsyncIterator
+from src.domain.entities import CodeChange
 
 
 class CodeChangeRepository(ABC):
@@ -14,6 +15,6 @@ class CodeChangeRepository(ABC):
         pass
 
     @abstractmethod
-    async def save(self, code_change: CodeChange) -> None:
-        """Persists a CodeChange event."""
+    def listen(self) -> AsyncIterator[CodeChange]:
+        """Streams code changes from the repository."""
         pass

@@ -5,6 +5,11 @@ from src.domain.ports.repository import CodeChangeRepository
 from src.domain.exceptions import MappingError
 
 
+REPOSITORY = "user/project"
+SHA = "sha123abc"
+REF = "refs/heads/main"
+
+
 @pytest.fixture
 def mock_repo():
     return AsyncMock(spec=CodeChangeRepository)
@@ -18,16 +23,16 @@ def use_case(mock_repo):
 @pytest.mark.asyncio
 async def test_should_process_push_event(use_case, mock_repo):
     payload = {
-        "ref": "refs/heads/main",
-        "after": "sha123",
-        "repository": {"full_name": "paco/repo"},
+        "ref": REF,
+        "after": SHA,
+        "repository": {"full_name": REPOSITORY},
     }
 
     await use_case.execute(payload, event_type="push")
 
     mock_repo.save.assert_called_once()
     saved_change = mock_repo.save.call_args[0][0]
-    assert saved_change.repository == "paco/repo"
+    assert saved_change.repository == REPOSITORY
     assert saved_change.event_type == "push"
 
 
@@ -36,15 +41,15 @@ async def test_should_process_pull_request_event(use_case, mock_repo):
     payload = {
         "action": "opened",
         "number": 1,
-        "pull_request": {"head": {"sha": "sha456"}},
-        "repository": {"full_name": "paco/repo"},
+        "pull_request": {"head": {"sha": "SHA"}},
+        "repository": {"full_name": REPOSITORY},
     }
 
     await use_case.execute(payload, event_type="pull_request")
 
     mock_repo.save.assert_called_once()
     saved_change = mock_repo.save.call_args[0][0]
-    assert saved_change.repository == "paco/repo"
+    assert saved_change.repository == REPOSITORY
     assert saved_change.event_type == "pull_request"
 
 
