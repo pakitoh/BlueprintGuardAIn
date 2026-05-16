@@ -3,77 +3,108 @@ from src.domain.entities.code_change import CodeChange
 from src.domain.exceptions import MappingError
 
 
-def test_should_create_code_change_from_push_payload():
-    """Test the mapping from a raw GitHub push payload to our Domain Entity."""
-    raw_push_payload = {
+# --- Helpers ---
+
+def a_push_payload(**overrides):
+    payload = {
         "ref": "refs/heads/main",
         "after": "d4e5f6g7h8",
         "repository": {"full_name": "paco/blueprint-guardain"},
-        "commits": [
-            {
-                "id": "d4e5f6g7h8",
-                "message": "feat: add domain entities",
-                "author": {"name": "paco"},
-            }
-        ],
     }
+    payload.update(overrides)
+    return payload
 
-    change = CodeChange.from_push_event(raw_push_payload)
 
+def a_pr_payload(**overrides):
+    payload = {
+        "number": 42,
+        "pull_request": {"head": {"sha": "a1b2c3d4"}},
+        "repository": {"full_name": "paco/blueprint-guardain"},
+    }
+    payload.update(overrides)
+    return payload
+
+
+# --- from_push_event ---
+
+def test_push_maps_repository():
+    change = CodeChange.from_push_event(a_push_payload())
     assert change.repository == "paco/blueprint-guardain"
-    assert change.ref == "refs/heads/main"
-    assert change.target_sha == "d4e5f6g7h8"
+
+
+def test_push_maps_ref():
+    change = CodeChange.from_push_event(a_push_payload(ref="refs/heads/feature"))
+    assert change.ref == "refs/heads/feature"
+
+
+def test_push_maps_target_sha_from_after():
+    change = CodeChange.from_push_event(a_push_payload(after="abc123"))
+    assert change.target_sha == "abc123"
+
+
+def test_push_sets_event_type():
+    change = CodeChange.from_push_event(a_push_payload())
     assert change.event_type == "push"
 
 
-def test_push_mapping_should_fail_with_missing_keys():
-    """Ensure the domain raises a MappingError if the push payload is malformed."""
-    invalid_payload = {"ref": "only-ref-no-repo"}
-
-    with pytest.raises(MappingError) as excinfo:
-        CodeChange.from_push_event(invalid_payload)
-
-    assert "Missing required field" in str(excinfo.value)
+def test_push_preserves_raw_payload():
+    payload = a_push_payload()
+    change = CodeChange.from_push_event(payload)
+    assert change.raw_payload is payload
 
 
-def test_should_create_code_change_from_pull_request_payload():
-    """Test the mapping from a raw GitHub PR payload to our Domain Entity."""
-    raw_pr_payload = {
-        "action": "opened",
-        "number": 42,
-        "pull_request": {
-            "head": {"sha": "a1b2c3d4"},
-            "base": {"repo": {"full_name": "paco/blueprint-guardain"}},
-        },
-        "repository": {"full_name": "paco/blueprint-guardain"},
-    }
+def test_push_raises_on_missing_keys():
+    with pytest.raises(MappingError, match="Missing required field"):
+        CodeChange.from_push_event({"ref": "only-ref-no-repo"})
 
-    change = CodeChange.from_pull_request_event(raw_pr_payload)
 
+# --- from_pull_request_event ---
+
+def test_pr_maps_repository():
+    change = CodeChange.from_pull_request_event(a_pr_payload())
     assert change.repository == "paco/blueprint-guardain"
-    assert change.ref == "pr/42"
-    assert change.target_sha == "a1b2c3d4"
+
+
+def test_pr_formats_ref_with_pr_number():
+    change = CodeChange.from_pull_request_event(a_pr_payload(number=7))
+    assert change.ref == "pr/7"
+
+
+def test_pr_maps_target_sha_from_head():
+    payload = a_pr_payload()
+    payload["pull_request"]["head"]["sha"] = "headsha99"
+    change = CodeChange.from_pull_request_event(payload)
+    assert change.target_sha == "headsha99"
+
+
+def test_pr_sets_event_type():
+    change = CodeChange.from_pull_request_event(a_pr_payload())
     assert change.event_type == "pull_request"
 
 
-def test_pr_mapping_should_fail_with_missing_keys():
-    """Ensure the domain raises a MappingError if the PR payload is malformed."""
-    invalid_payload = {"action": "opened", "number": 1}  # Missing 'pull_request' object
-
-    with pytest.raises(MappingError) as excinfo:
-        CodeChange.from_pull_request_event(invalid_payload)
-
-    assert "Missing required field" in str(excinfo.value)
+def test_pr_preserves_raw_payload():
+    payload = a_pr_payload()
+    change = CodeChange.from_pull_request_event(payload)
+    assert change.raw_payload is payload
 
 
-def test_should_fail_if_repository_is_empty():
-    """Ensure the domain validates that essential fields are present."""
-    with pytest.raises(MappingError) as exc:
-        CodeChange(
-            repository="",
-            ref="main",
-            target_sha="sha",
-            event_type="push",
-            raw_payload={},
-        )
-    assert "Repository cannot be empty" in str(exc.value)
+def test_pr_raises_on_missing_keys():
+    with pytest.raises(MappingError, match="Missing required field"):
+        CodeChange.from_pull_request_event({"number": 1})
+
+
+# --- __post_init__ validation ---
+
+def test_raises_when_repository_is_empty():
+    with pytest.raises(MappingError, match="Repository cannot be empty"):
+        CodeChange(repository="", ref="main", target_sha="sha", event_type="push", raw_payload={})
+
+
+def test_raises_when_target_sha_is_empty():
+    with pytest.raises(MappingError, match="Target SHA cannot be empty"):
+        CodeChange(repository="org/repo", ref="main", target_sha="", event_type="push", raw_payload={})
+
+
+def test_raises_when_event_type_is_empty():
+    with pytest.raises(MappingError, match="Event type cannot be empty"):
+        CodeChange(repository="org/repo", ref="main", target_sha="sha", event_type="", raw_payload={})
