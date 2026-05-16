@@ -2,12 +2,12 @@ from schema_registry.client import SchemaRegistryClient
 
 from src.config import settings
 from src.infrastructure.kafka.repository import KafkaCodeChangeRepository
-from src.domain.ports.repository import CodeChangeRepository
 
 
 class InfrastructureFactory:
     def __init__(self):
         self._schema_client = None
+        self._repo = None
 
     @property
     def schema_client(self) -> SchemaRegistryClient:
@@ -15,14 +15,23 @@ class InfrastructureFactory:
             self._schema_client = SchemaRegistryClient(url=settings.schema_registry_url)
         return self._schema_client
 
-    def create_code_change_repository(self) -> CodeChangeRepository:
-        """Creates a CodeChangeRepository (Infrastructure details hidden)."""
+    @property
+    def code_change_repository(self) -> KafkaCodeChangeRepository:
+        if not self._repo:
+            raise RuntimeError("Factory not started. Call start() first.")
+        return self._repo
+
+    async def start(self) -> None:
         with open("../schemas/CodeChange.avsc", "r") as f:
             schema_str = f.read()
-
-        return KafkaCodeChangeRepository(
+        self._repo = KafkaCodeChangeRepository(
             bootstrap_servers=settings.kafka_bootstrap_servers,
             topic=settings.webhook_events_topic,
             schema_client=self.schema_client,
             schema_str=schema_str,
         )
+        await self._repo.start()
+
+    async def stop(self) -> None:
+        if self._repo:
+            await self._repo.stop()

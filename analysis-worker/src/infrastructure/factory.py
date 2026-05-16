@@ -1,21 +1,17 @@
 from schema_registry.client import SchemaRegistryClient
 
 from src.config import settings
-from src.application.use_cases.analyze_code_change import AnalyzeCodeChangeUseCase
 from src.infrastructure.kafka.analysis_result_repository import (
     KafkaAnalysisResultRepository,
 )
-from src.infrastructure.kafka.code_change_repository import KafkaCodeChangeRepository
-from src.infrastructure.tracing.instrumented_analyze_code_change import (
-    InstrumentedAnalyzeCodeChangeUseCase,
-)
-from src.domain.ports.analysis_result_repository import AnalysisResultRepository
-from src.domain.ports.code_change_repository import CodeChangeRepository
+from src.infrastructure.kafka.code_change_source import KafkaCodeChangeSource
 
 
 class InfrastructureFactory:
     def __init__(self):
         self._schema_client = None
+        self._source = None
+        self._sink = None
 
     @property
     def schema_client(self) -> SchemaRegistryClient:
@@ -23,26 +19,38 @@ class InfrastructureFactory:
             self._schema_client = SchemaRegistryClient(url=settings.schema_registry_url)
         return self._schema_client
 
-    def create_analysis_result_repository(self) -> AnalysisResultRepository:
-        with open("../schemas/AnalysisResult.avsc", "r") as f:
-            schema_str = f.read()
+    @property
+    def code_change_source(self) -> KafkaCodeChangeSource:
+        if not self._source:
+            raise RuntimeError("Factory not started. Call start() first.")
+        return self._source
 
-        return KafkaAnalysisResultRepository(
-            bootstrap_servers=settings.kafka_bootstrap_servers,
-            topic=settings.results_topic,
-            schema_client=self.schema_client,
-            schema_str=schema_str,
-        )
+    @property
+    def analysis_result_repository(self) -> KafkaAnalysisResultRepository:
+        if not self._sink:
+            raise RuntimeError("Factory not started. Call start() first.")
+        return self._sink
 
-    def create_code_change_repository(self) -> CodeChangeRepository:
-        return KafkaCodeChangeRepository(
+    async def start(self) -> None:
+        self._source = KafkaCodeChangeSource(
             bootstrap_servers=settings.kafka_bootstrap_servers,
             topic=settings.webhook_events_topic,
             group_id=settings.consumer_group_id,
             schema_client=self.schema_client,
         )
+        with open("../schemas/AnalysisResult.avsc", "r") as f:
+            schema_str = f.read()
+        self._sink = KafkaAnalysisResultRepository(
+            bootstrap_servers=settings.kafka_bootstrap_servers,
+            topic=settings.results_topic,
+            schema_client=self.schema_client,
+            schema_str=schema_str,
+        )
+        await self._source.start()
+        await self._sink.start()
 
-    def create_analyze_code_change_use_case(
-        self, source: CodeChangeRepository, sink: AnalysisResultRepository
-    ) -> AnalyzeCodeChangeUseCase:
-        return InstrumentedAnalyzeCodeChangeUseCase(source=source, sink=sink)
+    async def stop(self) -> None:
+        if self._sink:
+            await self._sink.stop()
+        if self._source:
+            await self._source.stop()

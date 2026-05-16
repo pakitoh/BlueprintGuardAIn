@@ -8,12 +8,12 @@ from schema_registry.client import SchemaRegistryClient
 from fastavro import schemaless_reader
 
 from src.domain.entities import CodeChange
-from src.domain.ports.code_change_repository import CodeChangeRepository
+from src.domain.ports.code_change_source import CodeChangeSource
 
 logger = structlog.get_logger()
 
 
-class KafkaCodeChangeRepository(CodeChangeRepository):
+class KafkaCodeChangeSource(CodeChangeSource):
     def __init__(
         self,
         bootstrap_servers: str,
@@ -63,7 +63,7 @@ class KafkaCodeChangeRepository(CodeChangeRepository):
 
     async def listen(self) -> AsyncIterator[CodeChange]:
         if not self.consumer:
-            raise RuntimeError("Repository not started. Call start() first.")
+            raise RuntimeError("Source not started. Call start() first.")
 
         async for msg in self.consumer:
             try:

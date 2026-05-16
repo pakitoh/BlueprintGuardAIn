@@ -1,13 +1,13 @@
 import structlog
 from src.domain.entities import CodeChange, AnalysisResult
-from src.domain.ports.code_change_repository import CodeChangeRepository
+from src.domain.ports.code_change_source import CodeChangeSource
 from src.domain.ports.analysis_result_repository import AnalysisResultRepository
 
 logger = structlog.get_logger()
 
 
 class AnalyzeCodeChangeUseCase:
-    def __init__(self, source: CodeChangeRepository, sink: AnalysisResultRepository):
+    def __init__(self, source: CodeChangeSource, sink: AnalysisResultRepository):
         self._source = source
         self._sink = sink
 

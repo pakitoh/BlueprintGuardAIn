@@ -3,6 +3,9 @@ import structlog
 
 from src.infrastructure.instrumentation import instrument_app
 from src.infrastructure.factory import InfrastructureFactory
+from src.infrastructure.tracing.instrumented_analyze_code_change import (
+    InstrumentedAnalyzeCodeChangeUseCase,
+)
 
 logger = structlog.get_logger()
 
@@ -11,21 +14,18 @@ async def run_worker():
     instrument_app()
 
     factory = InfrastructureFactory()
-    source = factory.create_code_change_repository()
-    sink = factory.create_analysis_result_repository()
-
-    await source.start()
-    await sink.start()
-
-    use_case = factory.create_analyze_code_change_use_case(source, sink)
-    logger.info("analysis_worker_ready")
+    await factory.start()
 
     try:
+        use_case = InstrumentedAnalyzeCodeChangeUseCase(
+            source=factory.code_change_source,
+            sink=factory.analysis_result_repository,
+        )
+        logger.info("analysis_worker_ready")
         await use_case.run()
     finally:
         logger.info("stopping_analysis_worker")
-        await source.stop()
-        await sink.stop()
+        await factory.stop()
 
 
 if __name__ == "__main__":

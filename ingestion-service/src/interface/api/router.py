@@ -11,13 +11,10 @@ router = APIRouter()
 
 def get_process_webhook_use_case(request: Request) -> ProcessWebhookUseCase:
     """Dependency provider for the ProcessWebhookUseCase."""
-    # We now fetch the pure Domain Repository from the app state
-    code_change_repo = getattr(request.app.state, "code_change_repo", None)
-
-    if code_change_repo is None:
-        raise RuntimeError("CodeChangeRepository not initialized in app state")
-
-    return ProcessWebhookUseCase(repository=code_change_repo)
+    factory = getattr(request.app.state, "factory", None)
+    if factory is None:
+        raise RuntimeError("InfrastructureFactory not initialized in app state")
+    return ProcessWebhookUseCase(repository=factory.code_change_repository)
 
 
 @router.get("/health")

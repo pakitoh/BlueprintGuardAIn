@@ -11,16 +11,14 @@ from src.infrastructure.factory import InfrastructureFactory
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     factory = InfrastructureFactory()
-    code_change_repo = factory.create_code_change_repository()
-    await code_change_repo.start()
-    app.state.code_change_repo = code_change_repo
+    await factory.start()
+    app.state.factory = factory
     try:
         yield
     finally:
-        await code_change_repo.stop()
+        await factory.stop()
 
 
-# Initialize app
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
 app.include_router(router)
 instrument_app(app)

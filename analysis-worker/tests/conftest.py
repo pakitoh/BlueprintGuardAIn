@@ -8,7 +8,7 @@ def mock_kafka(mocker):
     Globally patches Kafka Consumer and Producer to prevent network calls during tests.
     """
     mock_consumer_class = mocker.patch(
-        "src.infrastructure.kafka.code_change_repository.AIOKafkaConsumer"
+        "src.infrastructure.kafka.code_change_source.AIOKafkaConsumer"
     )
     mock_producer_class = mocker.patch(
         "src.infrastructure.kafka.analysis_result_repository.AIOKafkaProducer"
