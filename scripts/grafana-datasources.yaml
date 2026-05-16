@@ -10,7 +10,25 @@ datasources:
     type: tempo
     access: proxy
     url: http://tempo:3200
+    uid: tempo                         # Explicit UID used by Loki's derivedFields
+    jsonData:
+      tracesToLogsV2:
+        datasourceUid: Loki            # Target data source name or UID
+        spanStartTimeShift: '5m'       # Search logs 1 hour before trace start
+        spanEndTimeShift: '5m'         # Search logs 1 hour after trace end
+        tags:
+          - key: 'service.name'        # Span attribute key
+            value: 'logger'            # Corresponding Loki log label mapping
+        filterByTraceID: true
+        filterBySpanID: true
   - name: Loki
     type: loki
     access: proxy
     url: http://loki:3100
+    jsonData:
+      derivedFields:
+        - datasourceUid: tempo         # Must match the 'uid' fields of Tempo below
+          name: TraceID
+          matcherRegex: '"trace_id":\s*"\s*([a-fA-F0-9]{32})\s*"' # Matches trace_id=xyz or traceID=xyz
+          url: '$${__value.raw}'       # Note the double $$ to escape Docker/Grafana variables
+          internal: true
