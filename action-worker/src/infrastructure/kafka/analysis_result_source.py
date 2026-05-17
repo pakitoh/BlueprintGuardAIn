@@ -3,6 +3,8 @@ import struct
 import structlog
 from typing import AsyncIterator
 from aiokafka import AIOKafkaConsumer
+from opentelemetry import context as otel_context
+from opentelemetry.propagate import extract
 from schema_registry.client import SchemaRegistryClient
 from fastavro import schemaless_reader
 
@@ -65,6 +67,8 @@ class KafkaAnalysisResultSource(AnalysisResultSource):
             raise RuntimeError("Source not started. Call start() first.")
 
         async for msg in self.consumer:
+            ctx = extract({k: v.decode() for k, v in (msg.headers or [])})
+            token = otel_context.attach(ctx)
             try:
                 data = self._deserialize_avro(msg.value)
                 yield AnalysisResult(
@@ -76,3 +80,5 @@ class KafkaAnalysisResultSource(AnalysisResultSource):
                 )
             except Exception as e:
                 logger.error("message_consumption_failed", error=str(e))
+            finally:
+                otel_context.detach(token)
