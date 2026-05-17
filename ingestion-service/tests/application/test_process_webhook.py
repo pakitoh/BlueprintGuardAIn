@@ -7,6 +7,7 @@ from src.domain.exceptions import MappingError
 
 # --- Helpers ---
 
+
 def a_push_payload(**overrides):
     payload = {
         "ref": "refs/heads/main",
@@ -33,6 +34,7 @@ def a_use_case():
 
 
 # --- push event ---
+
 
 @pytest.mark.asyncio
 async def test_push_calls_save_once():
@@ -77,6 +79,7 @@ async def test_push_raises_on_malformed_payload():
 
 
 # --- pull_request event ---
+
 
 @pytest.mark.asyncio
 async def test_pr_calls_save_once():
@@ -124,6 +127,7 @@ async def test_pr_raises_on_malformed_payload():
 
 
 # --- unsupported event ---
+
 
 @pytest.mark.asyncio
 async def test_unsupported_event_raises_mapping_error():

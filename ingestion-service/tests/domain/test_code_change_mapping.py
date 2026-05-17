@@ -5,6 +5,7 @@ from src.domain.exceptions import MappingError
 
 # --- Helpers ---
 
+
 def a_push_payload(**overrides):
     payload = {
         "ref": "refs/heads/main",
@@ -26,6 +27,7 @@ def a_pr_payload(**overrides):
 
 
 # --- from_push_event ---
+
 
 def test_push_maps_repository():
     change = CodeChange.from_push_event(a_push_payload())
@@ -59,6 +61,7 @@ def test_push_raises_on_missing_keys():
 
 
 # --- from_pull_request_event ---
+
 
 def test_pr_maps_repository():
     change = CodeChange.from_pull_request_event(a_pr_payload())
@@ -95,16 +98,35 @@ def test_pr_raises_on_missing_keys():
 
 # --- __post_init__ validation ---
 
+
 def test_raises_when_repository_is_empty():
     with pytest.raises(MappingError, match="Repository cannot be empty"):
-        CodeChange(repository="", ref="main", target_sha="sha", event_type="push", raw_payload={})
+        CodeChange(
+            repository="",
+            ref="main",
+            target_sha="sha",
+            event_type="push",
+            raw_payload={},
+        )
 
 
 def test_raises_when_target_sha_is_empty():
     with pytest.raises(MappingError, match="Target SHA cannot be empty"):
-        CodeChange(repository="org/repo", ref="main", target_sha="", event_type="push", raw_payload={})
+        CodeChange(
+            repository="org/repo",
+            ref="main",
+            target_sha="",
+            event_type="push",
+            raw_payload={},
+        )
 
 
 def test_raises_when_event_type_is_empty():
     with pytest.raises(MappingError, match="Event type cannot be empty"):
-        CodeChange(repository="org/repo", ref="main", target_sha="sha", event_type="", raw_payload={})
+        CodeChange(
+            repository="org/repo",
+            ref="main",
+            target_sha="sha",
+            event_type="",
+            raw_payload={},
+        )

@@ -6,6 +6,7 @@ from src.domain.entities import CodeChange
 
 # --- Helpers ---
 
+
 def a_code_change(repository="paco/blueprint", target_sha="sha123"):
     return CodeChange(
         repository=repository,
@@ -34,6 +35,7 @@ def a_run_use_case(changes):
 
 
 # --- _process ---
+
 
 @pytest.mark.asyncio
 async def test_process_calls_sink_exactly_once():
@@ -92,6 +94,7 @@ async def test_process_findings_contain_passed():
 
 # --- run ---
 
+
 @pytest.mark.asyncio
 async def test_run_does_not_call_sink_when_source_is_empty():
     use_case, mock_sink = a_run_use_case([])
@@ -101,21 +104,25 @@ async def test_run_does_not_call_sink_when_source_is_empty():
 
 @pytest.mark.asyncio
 async def test_run_calls_sink_once_per_change():
-    use_case, mock_sink = a_run_use_case([
-        a_code_change(target_sha="sha1"),
-        a_code_change(target_sha="sha2"),
-        a_code_change(target_sha="sha3"),
-    ])
+    use_case, mock_sink = a_run_use_case(
+        [
+            a_code_change(target_sha="sha1"),
+            a_code_change(target_sha="sha2"),
+            a_code_change(target_sha="sha3"),
+        ]
+    )
     await use_case.run()
     assert mock_sink.save.call_count == 3
 
 
 @pytest.mark.asyncio
 async def test_run_maps_each_change_to_correct_result():
-    use_case, mock_sink = a_run_use_case([
-        a_code_change(repository="org/a", target_sha="sha1"),
-        a_code_change(repository="org/b", target_sha="sha2"),
-    ])
+    use_case, mock_sink = a_run_use_case(
+        [
+            a_code_change(repository="org/a", target_sha="sha1"),
+            a_code_change(repository="org/b", target_sha="sha2"),
+        ]
+    )
     await use_case.run()
     results = [call[0][0] for call in mock_sink.save.call_args_list]
     assert results[0].repository == "org/a" and results[0].sha == "sha1"
@@ -124,11 +131,13 @@ async def test_run_maps_each_change_to_correct_result():
 
 @pytest.mark.asyncio
 async def test_run_continues_processing_after_one_failure():
-    use_case, mock_sink = a_run_use_case([
-        a_code_change(target_sha="sha1"),
-        a_code_change(target_sha="sha2"),
-        a_code_change(target_sha="sha3"),
-    ])
+    use_case, mock_sink = a_run_use_case(
+        [
+            a_code_change(target_sha="sha1"),
+            a_code_change(target_sha="sha2"),
+            a_code_change(target_sha="sha3"),
+        ]
+    )
     mock_sink.save.side_effect = [Exception("transient failure"), None, None]
     await use_case.run()
     assert mock_sink.save.call_count == 3
@@ -139,4 +148,3 @@ async def test_run_does_not_raise_on_failure():
     use_case, mock_sink = a_run_use_case([a_code_change()])
     mock_sink.save.side_effect = Exception("sink down")
     await use_case.run()  # must not raise
-
