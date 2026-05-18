@@ -1,4 +1,4 @@
-FROM python:3.13-slim AS base
+FROM python:3.12-slim AS base
 
 # This is to allow the container to print unicode characters
 ENV LC_ALL='C.UTF-8' \
@@ -49,8 +49,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 ## Stage: dev dependencies
 FROM deps AS dev-deps
 
-ENV PYRIGHT_PYTHON_NODE_VERSION=system \
-  PYRIGHT_PYTHON_IGNORE_WARNINGS=true
+#ENV PYRIGHT_PYTHON_NODE_VERSION=system \
+#  PYRIGHT_PYTHON_IGNORE_WARNINGS=true
 # Install test build dependencies
 ENV DEV_BUILD_DEPENDENCIES="build-essential python3-dev"
 RUN apt-get update && \
@@ -70,7 +70,7 @@ COPY --from=deps --chown="${USER}:${USER}" ${APP_PATH}/.venv ${APP_PATH}/.venv
 
 # Copy application
 RUN mkdir -p src logs && chown "${USER}:${USER}" src logs
-COPY uv.lock pyproject.toml logging-development.cfg logging-production.cfg __main__.py ${APP_PATH}/
+COPY uv.lock pyproject.toml .env  ${APP_PATH}/
 COPY src ${APP_PATH}/src
 
 USER ${USER}
@@ -92,14 +92,13 @@ RUN apt-get update && \
 COPY --from=app --chown="${USER}:${USER}" ${APP_PATH} ${APP_PATH}
 COPY --from=dev-deps --chown="${USER}:${USER}" ${APP_PATH}/.venv ${APP_PATH}/.venv
 
-RUN uv run pyright --version
+#RUN uv run pyright --version
 
 # Copy tests
-RUN mkdir -p tests scripts && chown app:app tests scripts
+RUN mkdir -p tests && chown app:app tests
 COPY tests ${APP_PATH}/tests
-COPY scripts ${APP_PATH}/scripts
 
 USER ${USER}
 
-ENTRYPOINT ["uv", "run", "python", "."]
+ENTRYPOINT ["uv", "run", "python", "-m", "src.main"]
 CMD ["run"]

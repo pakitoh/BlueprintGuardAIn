@@ -26,3 +26,4 @@ class AnalysisResult:
     status: str  # e.g., "COMPLETED", "FAILED"
     findings: List[str]
     timestamp: datetime = field(default_factory=datetime.now)
+    ingested_at: datetime | None = None

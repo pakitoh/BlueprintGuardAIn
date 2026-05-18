@@ -77,6 +77,7 @@ class KafkaAnalysisResultSource(AnalysisResultSource):
                     status=data["status"],
                     findings=list(data["findings"]),
                     timestamp=data["timestamp"],
+                    ingested_at=data.get("ingested_at"),
                 )
             except Exception as e:
                 logger.error("message_consumption_failed", error=str(e))

@@ -4,6 +4,7 @@ import structlog
 from src.interface.api.dto import GithubWebhookDTO
 from src.application.use_cases.process_webhook import ProcessWebhookUseCase
 from src.domain.exceptions import MappingError
+from src.infrastructure.tracing.instrumented_process_webhook import InstrumentedProcessWebhookUseCase
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -14,7 +15,7 @@ def get_process_webhook_use_case(request: Request) -> ProcessWebhookUseCase:
     factory = getattr(request.app.state, "factory", None)
     if factory is None:
         raise RuntimeError("InfrastructureFactory not initialized in app state")
-    return ProcessWebhookUseCase(repository=factory.code_change_repository)
+    return InstrumentedProcessWebhookUseCase(repository=factory.code_change_repository)
 
 
 @router.get("/health")

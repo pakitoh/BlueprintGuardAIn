@@ -9,3 +9,4 @@ class AnalysisResult:
     status: str
     findings: List[str]
     timestamp: str
+    ingested_at: str | None = None

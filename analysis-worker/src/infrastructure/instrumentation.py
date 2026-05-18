@@ -132,4 +132,16 @@ def instrument_app():
     setup_tracing(resource)
     setup_metrics(resource)
     AIOKafkaInstrumentor().instrument()
+    _setup_litellm_otel()
     logger.debug("app_instrumentation_complete")
+
+
+def _setup_litellm_otel():
+    """Enable LiteLLM's built-in OTEL callback.
+
+    LiteLLM uses the globally configured TracerProvider (set up in setup_tracing),
+    so spans for every LLM/embedding call are automatically nested under the
+    current active span and share the same trace_id.
+    """
+    import litellm
+    litellm.callbacks = ["otel"]

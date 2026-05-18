@@ -13,6 +13,7 @@ async def test_embed_calls_aembedding_with_correct_params(mock_litellm_embedding
         model="gemini/gemini-embedding-2",
         input=["some text"],
         dimensions=768,
+        num_retries=3,
         api_key="test-key",
     )
 

@@ -1,5 +1,4 @@
-import os
-import re
+import time
 import structlog
 from typing import List
 
@@ -8,6 +7,7 @@ import asyncpg
 from src.domain.entities import CodeChange, PastFinding
 from src.domain.ports.embedder import Embedder
 from src.domain.ports.findings_store import FindingsStore
+from src.infrastructure.metrics import rag_retrieval_duration, rag_similar_count
 
 logger = structlog.get_logger()
 
@@ -62,6 +62,7 @@ class PgVectorFindingsStore(FindingsStore):
         vector = await self._embedder.embed(text)
         vector_literal = "[" + ",".join(str(v) for v in vector) + "]"
 
+        start = time.perf_counter()
         rows = await self._pool.fetch(  # type: ignore[union-attr]
             """
             SELECT rule_text, context
@@ -72,7 +73,10 @@ class PgVectorFindingsStore(FindingsStore):
             vector_literal,
             limit,
         )
-        return [PastFinding(rule_text=r["rule_text"], context=r["context"]) for r in rows]
+        rag_retrieval_duration.record(time.perf_counter() - start)
+        findings = [PastFinding(rule_text=r["rule_text"], context=r["context"]) for r in rows]
+        rag_similar_count.record(len(findings))
+        return findings
 
     async def save(self, change: CodeChange, findings: List[str]) -> None:
         if not findings:

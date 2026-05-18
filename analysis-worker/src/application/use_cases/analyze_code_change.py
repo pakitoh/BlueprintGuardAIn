@@ -25,7 +25,7 @@ class AnalyzeCodeChangeUseCase:
             except Exception as e:
                 logger.error("processing_failed", error=str(e), repo=change.repository)
 
-    async def _process(self, change: CodeChange) -> None:
+    async def _process(self, change: CodeChange) -> AnalysisResult:
         logger.info(
             "analyzing_code_change", repo=change.repository, sha=change.target_sha
         )
@@ -41,6 +41,8 @@ class AnalyzeCodeChangeUseCase:
             sha=change.target_sha,
             status=status,
             findings=findings,
+            ingested_at=change.timestamp,
         )
         await self._sink.save(result)
         logger.info("analysis_completed", repo=result.repository, status=result.status)
+        return result

@@ -98,6 +98,23 @@ async def test_process_result_status_is_completed_on_success():
 
 
 @pytest.mark.asyncio
+async def test_process_result_ingested_at_matches_change_timestamp():
+    use_case, mock_sink, _ = a_process_use_case()
+    change = a_code_change()
+    await use_case._process(change)
+    result = mock_sink.save.call_args[0][0]
+    assert result.ingested_at == change.timestamp
+
+
+@pytest.mark.asyncio
+async def test_process_returns_analysis_result():
+    use_case, _, _ = a_process_use_case()
+    result = await use_case._process(a_code_change())
+    assert result is not None
+    assert result.status == "COMPLETED"
+
+
+@pytest.mark.asyncio
 async def test_process_result_status_is_failed_when_analyzer_raises():
     use_case, mock_sink, mock_analyzer = a_process_use_case()
     mock_analyzer.analyze.side_effect = Exception("LLM unreachable")
