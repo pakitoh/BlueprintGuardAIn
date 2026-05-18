@@ -1,18 +1,18 @@
 import pytest
-from unittest.mock import AsyncMock, MagicMock
 from src.infrastructure.llm.litellm_embedder import LiteLLMEmbedder
 
 
 def an_embedder():
-    return LiteLLMEmbedder(model="gemini/text-embedding-004", api_key="test-key")
+    return LiteLLMEmbedder(model="gemini/gemini-embedding-2", api_key="test-key")
 
 
 @pytest.mark.asyncio
 async def test_embed_calls_aembedding_with_correct_params(mock_litellm_embedding):
     await an_embedder().embed("some text")
     mock_litellm_embedding.assert_awaited_once_with(
-        model="gemini/text-embedding-004",
+        model="gemini/gemini-embedding-2",
         input=["some text"],
+        dimensions=768,
         api_key="test-key",
     )
 

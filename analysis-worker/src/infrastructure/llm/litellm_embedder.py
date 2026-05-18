@@ -16,6 +16,8 @@ class LiteLLMEmbedder(Embedder):
         response = await aembedding(
             model=self._model,
             input=[text],
+            dimensions=768,
+            num_retries=3,
             api_key=self._api_key,
         )
         return response.data[0]["embedding"]

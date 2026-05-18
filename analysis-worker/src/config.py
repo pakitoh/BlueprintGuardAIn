@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     # LLM
     llm_api_key: str = ""
     llm_model: str = "gemini/gemini-2.5-flash"
-    embedding_model: str = "gemini/text-embedding-004"
+    embedding_model: str = "gemini/gemini-embedding-2"
 
     # PostgreSQL / pgvector
     postgres_dsn: str = "postgresql://postgres:postgres@localhost:5432/guardain_db"
