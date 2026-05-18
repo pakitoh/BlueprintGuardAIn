@@ -14,6 +14,12 @@ class CodeChange:
 
 
 @dataclass(frozen=True)
+class PastFinding:
+    rule_text: str
+    context: str
+
+
+@dataclass(frozen=True)
 class AnalysisResult:
     repository: str
     sha: str

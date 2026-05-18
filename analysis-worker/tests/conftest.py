@@ -14,10 +14,31 @@ def mock_litellm(mocker):
 
 
 @pytest.fixture(autouse=True)
+def mock_litellm_embedding(mocker):
+    mock_response = MagicMock()
+    mock_response.data = [{"embedding": [0.1] * 768}]
+    return mocker.patch(
+        "src.infrastructure.llm.litellm_embedder.aembedding",
+        new_callable=AsyncMock,
+        return_value=mock_response,
+    )
+
+
+@pytest.fixture(autouse=True)
+def mock_asyncpg(mocker):
+    mock_pool = AsyncMock()
+    mock_pool.fetch = AsyncMock(return_value=[])
+    mock_pool.execute = AsyncMock()
+    mock_pool.close = AsyncMock()
+    return mocker.patch(
+        "src.infrastructure.pgvector.pgvector_findings_store.asyncpg.create_pool",
+        new_callable=AsyncMock,
+        return_value=mock_pool,
+    )
+
+
+@pytest.fixture(autouse=True)
 def mock_kafka(mocker):
-    """
-    Globally patches Kafka Consumer and Producer to prevent network calls during tests.
-    """
     mock_consumer_class = mocker.patch(
         "src.infrastructure.kafka.code_change_source.AIOKafkaConsumer"
     )
@@ -28,7 +49,6 @@ def mock_kafka(mocker):
     mock_consumer = mock_consumer_class.return_value
     mock_consumer.start = AsyncMock()
     mock_consumer.stop = AsyncMock()
-    # Mocking the async iterator for the consumer
     mock_consumer.__aiter__.return_value = []
 
     mock_producer = mock_producer_class.return_value

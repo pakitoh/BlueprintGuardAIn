@@ -6,6 +6,8 @@ from src.infrastructure.kafka.analysis_result_repository import (
 )
 from src.infrastructure.kafka.code_change_source import KafkaCodeChangeSource
 from src.infrastructure.llm.litellm_code_analyzer import LiteLLMCodeAnalyzer
+from src.infrastructure.llm.litellm_embedder import LiteLLMEmbedder
+from src.infrastructure.pgvector.pgvector_findings_store import PgVectorFindingsStore
 
 
 class InfrastructureFactory:
@@ -14,6 +16,8 @@ class InfrastructureFactory:
         self._source = None
         self._sink = None
         self._analyzer = None
+        self._embedder = None
+        self._findings_store = None
 
     @property
     def schema_client(self) -> SchemaRegistryClient:
@@ -40,6 +44,16 @@ class InfrastructureFactory:
         return self._analyzer
 
     async def start(self) -> None:
+        self._embedder = LiteLLMEmbedder(
+            model=settings.embedding_model,
+            api_key=settings.llm_api_key,
+        )
+        self._findings_store = PgVectorFindingsStore(
+            dsn=settings.postgres_dsn,
+            embedder=self._embedder,
+        )
+        await self._findings_store.start()
+
         self._source = KafkaCodeChangeSource(
             bootstrap_servers=settings.kafka_bootstrap_servers,
             topic=settings.webhook_events_topic,
@@ -57,6 +71,7 @@ class InfrastructureFactory:
         self._analyzer = LiteLLMCodeAnalyzer(
             model=settings.llm_model,
             api_key=settings.llm_api_key,
+            findings_store=self._findings_store,
         )
         await self._source.start()
         await self._sink.start()
@@ -66,3 +81,5 @@ class InfrastructureFactory:
             await self._sink.stop()
         if self._source:
             await self._source.stop()
+        if self._findings_store:
+            await self._findings_store.stop()

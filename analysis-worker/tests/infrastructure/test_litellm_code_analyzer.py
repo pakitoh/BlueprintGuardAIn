@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-from src.domain.entities import CodeChange
+from src.domain.entities import CodeChange, PastFinding
 from src.infrastructure.llm.litellm_code_analyzer import LiteLLMCodeAnalyzer
 
 
@@ -29,8 +29,16 @@ def a_change_with_commits():
     )
 
 
-def an_analyzer():
-    return LiteLLMCodeAnalyzer(model="gemini/gemini-2.0-flash", api_key="test-key")
+def an_analyzer(findings_store=None):
+    if findings_store is None:
+        findings_store = AsyncMock()
+        findings_store.find_similar = AsyncMock(return_value=[])
+        findings_store.save = AsyncMock()
+    return LiteLLMCodeAnalyzer(
+        model="gemini/gemini-2.0-flash",
+        api_key="test-key",
+        findings_store=findings_store,
+    )
 
 
 # --- _build_prompt ---
@@ -64,6 +72,26 @@ async def test_build_prompt_contains_commit_message():
 async def test_build_prompt_handles_empty_payload():
     prompt = await an_analyzer()._build_prompt(a_change(raw_payload={}))
     assert "none listed" in prompt
+
+
+@pytest.mark.asyncio
+async def test_build_prompt_includes_similar_findings_when_present():
+    store = AsyncMock()
+    store.find_similar = AsyncMock(
+        return_value=[PastFinding(rule_text="Avoid cross-layer imports", context="ctx")]
+    )
+    store.save = AsyncMock()
+    prompt = await an_analyzer(findings_store=store)._build_prompt(a_change_with_commits())
+    assert "Avoid cross-layer imports" in prompt
+
+
+@pytest.mark.asyncio
+async def test_build_prompt_still_works_when_store_raises():
+    store = AsyncMock()
+    store.find_similar = AsyncMock(side_effect=Exception("DB down"))
+    store.save = AsyncMock()
+    prompt = await an_analyzer(findings_store=store)._build_prompt(a_change())
+    assert "architectural observations" in prompt
 
 
 # --- _call_llm ---
@@ -117,3 +145,24 @@ async def test_analyze_returns_parsed_findings(mock_litellm):
     mock_litellm.return_value.choices[0].message.content = "- Concern A\n- Concern B"
     findings = await an_analyzer().analyze(a_change_with_commits())
     assert findings == ["Concern A", "Concern B"]
+
+
+@pytest.mark.asyncio
+async def test_analyze_saves_to_store(mock_litellm):
+    mock_litellm.return_value.choices[0].message.content = "- Finding X"
+    store = AsyncMock()
+    store.find_similar = AsyncMock(return_value=[])
+    store.save = AsyncMock()
+    change = a_change_with_commits()
+    await an_analyzer(findings_store=store).analyze(change)
+    store.save.assert_awaited_once_with(change, ["Finding X"])
+
+
+@pytest.mark.asyncio
+async def test_analyze_still_returns_findings_when_save_fails(mock_litellm):
+    mock_litellm.return_value.choices[0].message.content = "- Finding Y"
+    store = AsyncMock()
+    store.find_similar = AsyncMock(return_value=[])
+    store.save = AsyncMock(side_effect=Exception("write error"))
+    findings = await an_analyzer(findings_store=store).analyze(a_change())
+    assert findings == ["Finding Y"]

@@ -4,19 +4,26 @@ from litellm import acompletion
 
 from src.domain.entities import CodeChange
 from src.domain.ports.code_analyzer import CodeAnalyzer
+from src.domain.ports.findings_store import FindingsStore
 
 logger = structlog.get_logger()
 
 
 class LiteLLMCodeAnalyzer(CodeAnalyzer):
-    def __init__(self, model: str, api_key: str):
+    def __init__(self, model: str, api_key: str, findings_store: FindingsStore):
         self._model = model
         self._api_key = api_key
+        self._findings_store = findings_store
 
     async def analyze(self, change: CodeChange) -> List[str]:
         prompt = await self._build_prompt(change)
         raw = await self._call_llm(prompt)
-        return self._parse_response(raw)
+        findings = self._parse_response(raw)
+        try:
+            await self._findings_store.save(change, findings)
+        except Exception as e:
+            logger.warning("findings_save_failed", error=str(e))
+        return findings
 
     async def _build_prompt(self, change: CodeChange) -> str:
         commits = change.raw_payload.get("commits", [])
@@ -37,6 +44,19 @@ class LiteLLMCodeAnalyzer(CodeAnalyzer):
             "\n".join(f"  - {m}" for m in commit_messages) or "  (none listed)"
         )
 
+        examples_section = ""
+        try:
+            similar = await self._findings_store.find_similar(change)
+            if similar:
+                items = "\n".join(
+                    f"  [{i+1}] {f.rule_text}" for i, f in enumerate(similar)
+                )
+                examples_section = (
+                    f"\nSimilar past findings for reference:\n{items}\n"
+                )
+        except Exception as e:
+            logger.warning("findings_store_unavailable", error=str(e))
+
         return (
             f"You are an expert software architect reviewing a code change.\n\n"
             f"Repository: {change.repository}\n"
@@ -44,7 +64,8 @@ class LiteLLMCodeAnalyzer(CodeAnalyzer):
             f"Branch: {change.ref}\n"
             f"SHA: {change.target_sha}\n\n"
             f"Changed files:\n{files_section}\n\n"
-            f"Commit messages:\n{messages_section}\n\n"
+            f"Commit messages:\n{messages_section}\n"
+            f"{examples_section}\n"
             f"Provide a concise list of architectural observations, one per line. "
             f"Focus on design patterns, potential issues, coupling, and anything worth flagging in a code review."
         )
