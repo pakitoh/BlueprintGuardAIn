@@ -9,128 +9,121 @@
 
 # 🛡️ Description
 
-**Blueprint GuardAIn** is an autonomous codebase intelligence platform designed to maintain architectural integrity and documentation health. It acts as an AI-driven peer reviewer that lives in your CI/CD pipeline, ensuring your code aligns with your project's defined domain rules and helping you to maintain architectural integrity.
-
-## 🏗️ Monorepo Architecture
-
-This project is structured as a collection of **independent microservices**. Each service is a standalone Python project with its own dependencies and environment, communicating asynchronously via **Kafka**.
-
-### Service Map
-1.  **`ingestion-service/`**: FastAPI gateway. Receives GitHub Webhooks, validates signatures, and produces raw events to Kafka.
-2.  **`analysis-worker/`**: The "Brain". Consumes events, fetches code diffs, performs AI analysis using LLMs, and stores embeddings in **pgvector**.
-3.  **`action-worker/`**: The "Actuator". Consumes analysis results and interacts with external APIs (GitHub PR comments, Slack, etc.).
+**Blueprint GuardAIn** is an autonomous codebase intelligence platform that acts as an AI-driven peer reviewer inside your CI/CD pipeline. It receives GitHub webhooks, analyzes code changes using LLMs, and posts architectural feedback back to PRs and Slack — all without blocking the webhook response.
 
 ---
 
-## 🚀 Core Features
-*   **Asynchronous Processing:** Powered by Kafka to handle long-running AI analysis tasks without timing out webhooks.
-*   **Architectural Guardrails:** Detects "architectural drift" (e.g., domain leaks) using context-aware LLM analysis.
-*   **Semantic Knowledge Base:** Uses **pgvector** and RAG to allow natural language queries against your codebase history.
-*   **Strict Decoupling:** Services are physically separated, allowing for independent scaling and deployment.
+## 🤖 AI Design
+
+### LLM-Powered Architectural Review
+
+The core of the platform is an LLM analysis loop built on [LiteLLM](https://github.com/BerriAI/litellm), which provides a unified interface to multiple LLM providers. The default model is **Gemini 2.5 Flash** via Google AI Studio, chosen for its large context window and low latency on code-heavy prompts.
+
+Each analysis prompt is structured in three steps:
+
+1. **Context extraction** — changed files, commit messages, and branch are parsed from the webhook payload.
+2. **RAG augmentation** — similar past findings are retrieved from the knowledge base and injected as examples (see below).
+3. **Response parsing** — the LLM output is normalised into a clean list of architectural observations, stripping bullet and numbering markers.
+
+The analyzer is injected via a `CodeAnalyzer` port (abstract base class), so the LLM backend can be swapped or mocked without touching application logic.
+
+### RAG Knowledge Base (pgvector)
+
+Analysis quality improves over time through a **Retrieval-Augmented Generation** loop backed by **PostgreSQL + pgvector**:
+
+- After each successful analysis, the findings are stored alongside a vector embedding of the code change.
+- Before each new analysis, the top-3 most semantically similar past findings are retrieved and injected into the prompt as architectural reference.
+
+**Key design decision — repo-agnostic embeddings:** The embedding text is normalised to strip repository names and full paths, keeping only filenames and recognised architectural layer segments (`domain`, `kafka`, `use_cases`, etc.). This means a finding about a Kafka consumer in `service-A` can inform the analysis of an equivalent change in `service-B`, enabling cross-project knowledge transfer.
+
+**Embedder port for swappability:** Embeddings are produced via a `LiteLLMEmbedder` adapter that calls Google's `text-embedding-004` (768 dimensions) using the same API key as the LLM. The `Embedder` port (ABC) keeps the door open to swap in a local model (e.g. `sentence-transformers`) without changing any application code.
+
+**Resilience:** If the vector store is unavailable, the analysis still runs — the RAG context is silently omitted and a warning is logged. Failures in saving new findings after analysis are also non-blocking.
+
+### Seed Knowledge
+
+The knowledge base can be pre-populated with curated architectural rules via `scripts/seed_findings.py`. This avoids a cold-start problem: the system provides useful feedback from day one, without needing to accumulate a history of real code changes first. The seed set covers common DDD/hexagonal patterns (port definitions, use case isolation, Kafka adapter responsibilities, trace propagation).
 
 ---
 
-## 📦 Getting Started
+## ⚙️ How It Works
 
-### 1. Prerequisites
-*   **Python 3.12+** (Managed by `uv`)
-*   **Docker & Docker Compose** (For Kafka, PostgreSQL, and pgvector)
-*   **OpenAI API Key** (For analysis and embeddings)
+```
+GitHub Webhook
+     │
+     ▼
+┌──────────────────┐    Kafka (Avro)    ┌─────────────────────┐    Kafka (Avro)    ┌────────────────┐
+│ ingestion-service│ ──────────────────▶│  analysis-worker    │ ──────────────────▶│ action-worker  │
+│  FastAPI gateway │                    │  LLM + RAG + pgvec  │                    │ GitHub / Slack │
+└──────────────────┘                    └─────────────────────┘                    └────────────────┘
+```
 
-### 2. Infrastructure Setup
-Launch the shared infrastructure at the root:
+Three independent Python microservices communicate via **Kafka** using Avro-serialized messages:
+
+- **`ingestion-service/`** — validates GitHub webhook signatures, produces `CodeChange` events.
+- **`analysis-worker/`** — consumes events, runs LLM+RAG analysis, publishes `AnalysisResult` events.
+- **`action-worker/`** — consumes results, posts comments to GitHub PRs and Slack.
+
+---
+
+## 📡 Observability
+
+Trace context is propagated across Kafka boundaries using **W3C `traceparent` headers**, so a single trace ID links the GitHub webhook all the way through to the GitHub PR comment. This required manually calling `propagate.extract()` and `otel_context.attach()` inside the Kafka consumer generator — the `AIOKafkaInstrumentor` creates its receive span inside `__anext__`, which ends before the loop body runs, so automatic propagation does not work across the async generator boundary.
+
+Every log entry carries `trace_id` and `span_id` via `LoggingInstrumentor`. In Grafana you can jump from a log line directly to the full trace in Tempo.
+
+| Pillar | Tool |
+| :--- | :--- |
+| Traces | Tempo |
+| Metrics | Prometheus |
+| Logs | Loki (JSON, all libraries) |
+
+---
+
+## 🚀 Getting Started
+
+**Prerequisites:** Python 3.12+, Docker & Docker Compose, Google AI Studio API key.
+
 ```bash
+# 1. Start infrastructure (Kafka, PostgreSQL/pgvector, OTEL stack)
 docker-compose up -d
-```
 
-### 3. Service Initialization
-Since each service is independent, you must initialize each one:
-```bash
+# 2. Install dependencies for each service
 cd ingestion-service && uv sync
-cd ../analysis-worker && uv sync
-cd ../action-worker && uv sync
-```
+cd ../analysis-worker  && uv sync
+cd ../action-worker    && uv sync
 
-### 4. Running the Platform
-Open three terminal tabs to run the services:
+# 3. Seed the knowledge base (optional but recommended)
+cd analysis-worker && uv run python scripts/seed_findings.py
 
-**Tab 1 (Ingestion):**
-```bash
+# 4. Run the three services (one terminal each)
 cd ingestion-service && uv run python -m src.main
+cd analysis-worker   && uv run python -m src.main
+cd action-worker     && uv run python -m src.main
 ```
 
-**Tab 2 (Analysis):**
-```bash
-cd analysis-worker && uv run python -m src.main
-```
+### Simulate a webhook
 
-**Tab 3 (Action):**
 ```bash
-cd action-worker && uv run python -m src.main
+uv run scripts/simulate_webhook.py --count 1      # single event
+uv run scripts/simulate_webhook.py --delay 0.5    # continuous load
 ```
 
 ---
 
-## 🛠️ Simulation & Testing
+## 🧪 Testing
 
-### Simulate GitHub Webhooks
-Use the simulation script to generate traffic. It supports random data and continuous execution.
+Each service has an isolated test suite that runs without Docker. Infrastructure (Kafka, pgvector, LiteLLM) is mocked at the boundary via `conftest.py` fixtures.
 
-**Quick Test (Single Event):**
 ```bash
-uv run scripts/simulate_webhook.py --count 1
-```
-
-**Stress Test (Indefinite Events):**
-```bash
-uv run scripts/simulate_webhook.py --delay 0.5
+cd analysis-worker && uv run python -m pytest
 ```
 
 ---
 
-## 📊 Observability & Logging
+## 📦 Kafka Topics
 
-The platform is fully instrumented using **OpenTelemetry (OTEL)** and **Structlog**, exporting data to a centralized OTLP collector.
-
-### The "Three Pillars"
-*   **Traces:** Full request/event lifecycle visible in **Tempo**.
-*   **Metrics:** "Golden Signals" (latency, error rates, load) exported to **Prometheus**.
-*   **Logs:** Universal JSON logging exported to **Loki**.
-
-### Logging Standards
-Every log message across the system is a **JSON object** (including library logs like Uvicorn or Kafka). We follow a strict severity hierarchy:
-
-| Level | Usage | Example |
+| Topic | Producer | Consumer |
 | :--- | :--- | :--- |
-| **DEBUG** | Infrastructure, initialization, and trace details. | `starting_kafka_producer`, `received_message` |
-| **INFO** | Significant **Business Events**. | `webhook_processed_successfully`, `analysis_completed` |
-| **WARN** | Controlled failures or edge cases. | `webhook_unsupported_event` |
-| **ERROR** | Unexpected system failures or crashes. | `kafka_connection_lost`, `unexpected_mapping_error` |
-
-### Log-Trace Correlation
-Every log entry automatically includes a `trace_id` and `span_id`. In Grafana, you can jump from a log error directly to the corresponding trace in Tempo to debug the root cause.
-
----
-
-## 🧪 Development & TDD
-
-Each service follows a **DDD** structure and strict **TDD** mandates.
-
-*   **Validation:** Every service must pass its own quality gates:
-    ```bash
-    uv run ruff check .
-    uv run mypy .
-    uv run pytest
-    ```
-*   **Observability:** Integrated with **OpenTelemetry** for cross-service tracing and **Structlog** for structured JSON logging.
-
----
-
-## 🏦 Data & Events
-
-### Kafka Topics
-*   `webhook-events`: Raw events from the Ingestion Service.
-*   `analysis-results`: Structured reports from the Analysis Worker.
-
-### Storage
-*   **PostgreSQL + pgvector:** Stores structured metadata and high-dimensional code embeddings in the same instance for simplicity and performance.
+| `webhook-events` | ingestion-service | analysis-worker |
+| `analysis-results` | analysis-worker | action-worker |
