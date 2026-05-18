@@ -17,16 +17,21 @@ def _make_source(messages, mocker):
             async def _gen():
                 for msg in messages:
                     yield msg
+
             return _gen()
 
     source.consumer = _Consumer()
-    mocker.patch.object(source, "_deserialize_avro", return_value={
-        "repository": "org/repo",
-        "ref": "main",
-        "target_sha": "sha123",
-        "event_type": "push",
-        "raw_payload": "{}",
-    })
+    mocker.patch.object(
+        source,
+        "_deserialize_avro",
+        return_value={
+            "repository": "org/repo",
+            "ref": "main",
+            "target_sha": "sha123",
+            "event_type": "push",
+            "raw_payload": "{}",
+        },
+    )
     return source
 
 

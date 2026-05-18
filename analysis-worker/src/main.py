@@ -20,6 +20,7 @@ async def run_worker():
         use_case = InstrumentedAnalyzeCodeChangeUseCase(
             source=factory.code_change_source,
             sink=factory.analysis_result_repository,
+            analyzer=factory.code_analyzer,
         )
         logger.info("analysis_worker_ready")
         await use_case.run()

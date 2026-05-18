@@ -5,6 +5,7 @@ from src.infrastructure.kafka.analysis_result_repository import (
     KafkaAnalysisResultRepository,
 )
 from src.infrastructure.kafka.code_change_source import KafkaCodeChangeSource
+from src.infrastructure.llm.litellm_code_analyzer import LiteLLMCodeAnalyzer
 
 
 class InfrastructureFactory:
@@ -12,6 +13,7 @@ class InfrastructureFactory:
         self._schema_client = None
         self._source = None
         self._sink = None
+        self._analyzer = None
 
     @property
     def schema_client(self) -> SchemaRegistryClient:
@@ -31,6 +33,12 @@ class InfrastructureFactory:
             raise RuntimeError("Factory not started. Call start() first.")
         return self._sink
 
+    @property
+    def code_analyzer(self) -> LiteLLMCodeAnalyzer:
+        if not self._analyzer:
+            raise RuntimeError("Factory not started. Call start() first.")
+        return self._analyzer
+
     async def start(self) -> None:
         self._source = KafkaCodeChangeSource(
             bootstrap_servers=settings.kafka_bootstrap_servers,
@@ -45,6 +53,10 @@ class InfrastructureFactory:
             topic=settings.results_topic,
             schema_client=self.schema_client,
             schema_str=schema_str,
+        )
+        self._analyzer = LiteLLMCodeAnalyzer(
+            model=settings.llm_model,
+            api_key=settings.llm_api_key,
         )
         await self._source.start()
         await self._sink.start()

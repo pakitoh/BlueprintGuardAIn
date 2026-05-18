@@ -16,6 +16,7 @@ dependencies = [
     "opentelemetry-instrumentation-aiokafka>=0.62b1",
     "python-schema-registry-client>=2.6.1",
     "fastavro>=1.12.2",
+    "litellm>=1.85.0",
 ]
 
 [dependency-groups]

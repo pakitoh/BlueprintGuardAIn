@@ -1,5 +1,16 @@
 import pytest
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
+
+
+@pytest.fixture(autouse=True)
+def mock_litellm(mocker):
+    mock_response = MagicMock()
+    mock_response.choices[0].message.content = "Default mocked finding"
+    return mocker.patch(
+        "src.infrastructure.llm.litellm_code_analyzer.acompletion",
+        new_callable=AsyncMock,
+        return_value=mock_response,
+    )
 
 
 @pytest.fixture(autouse=True)

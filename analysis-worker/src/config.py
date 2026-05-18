@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     results_topic: str = "analysis-results"
     consumer_group_id: str = "analysis-worker-group"
 
+    # LLM
+    llm_api_key: str = ""
+    llm_model: str = "gemini/gemini-2.0-flash"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
