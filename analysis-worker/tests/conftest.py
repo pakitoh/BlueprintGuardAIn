@@ -7,7 +7,7 @@ def mock_litellm(mocker):
     mock_response = MagicMock()
     mock_response.choices[0].message.content = "Default mocked finding"
     return mocker.patch(
-        "src.infrastructure.llm.litellm_code_analyzer.acompletion",
+        "src.infrastructure.llm.litellm_client.acompletion",
         new_callable=AsyncMock,
         return_value=mock_response,
     )

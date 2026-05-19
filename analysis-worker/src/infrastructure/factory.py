@@ -1,12 +1,15 @@
 from schema_registry.client import SchemaRegistryClient
 
 from src.config import settings
+from src.application.services.finding_parser import FindingParser
+from src.application.services.llm_code_analyzer import LLMCodeAnalyzer
+from src.application.services.prompt_composer import PromptComposer
 from src.infrastructure.github.github_diff_fetcher import GitHubDiffFetcher
 from src.infrastructure.kafka.analysis_result_repository import (
     KafkaAnalysisResultRepository,
 )
 from src.infrastructure.kafka.code_change_source import KafkaCodeChangeSource
-from src.infrastructure.llm.litellm_code_analyzer import LiteLLMCodeAnalyzer
+from src.infrastructure.llm.litellm_client import LiteLLMClient
 from src.infrastructure.llm.litellm_embedder import LiteLLMEmbedder
 from src.infrastructure.pgvector.pgvector_findings_store import PgVectorFindingsStore
 
@@ -39,7 +42,7 @@ class InfrastructureFactory:
         return self._sink
 
     @property
-    def code_analyzer(self) -> LiteLLMCodeAnalyzer:
+    def code_analyzer(self) -> LLMCodeAnalyzer:
         if not self._analyzer:
             raise RuntimeError("Factory not started. Call start() first.")
         return self._analyzer
@@ -69,11 +72,15 @@ class InfrastructureFactory:
             schema_client=self.schema_client,
             schema_str=schema_str,
         )
-        self._analyzer = LiteLLMCodeAnalyzer(
-            model=settings.llm_model,
-            api_key=settings.llm_api_key,
-            findings_store=self._findings_store,
+        self._analyzer = LLMCodeAnalyzer(
+            llm_client=LiteLLMClient(
+                model=settings.llm_model,
+                api_key=settings.llm_api_key,
+            ),
             diff_fetcher=GitHubDiffFetcher(token=settings.github_token),
+            findings_store=self._findings_store,
+            prompt_composer=PromptComposer(),
+            finding_parser=FindingParser(),
         )
         await self._source.start()
         await self._sink.start()
