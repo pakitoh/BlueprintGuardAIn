@@ -127,3 +127,11 @@ async def test_save_skips_insert_for_empty_findings():
     store, _ = a_store(pool=pool)
     await store.save(a_change(), [])
     pool.execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_save_logs_warning_and_continues_on_error():
+    pool = AsyncMock()
+    pool.execute = AsyncMock(side_effect=Exception("DB unavailable"))
+    store, _ = a_store(pool=pool)
+    await store.save(a_change_with_commits(), ["Finding A"])

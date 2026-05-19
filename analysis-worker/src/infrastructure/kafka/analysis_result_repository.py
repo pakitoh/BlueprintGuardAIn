@@ -84,4 +84,3 @@ class KafkaAnalysisResultRepository(AnalysisResultRepository):
 
         except Exception as e:
             logger.error("kafka_produce_failed", error=str(e))
-            raise RepositoryError(f"Failed to save analysis result: {e}")

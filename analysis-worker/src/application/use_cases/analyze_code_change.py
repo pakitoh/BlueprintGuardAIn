@@ -20,22 +20,13 @@ class AnalyzeCodeChangeUseCase:
 
     async def run(self) -> None:
         async for change in self._source.listen():
-            try:
-                await self._process(change)
-            except Exception as e:
-                logger.error("processing_failed", error=str(e), repo=change.repository)
+            await self._process(change)
 
     async def _process(self, change: CodeChange) -> AnalysisResult:
         logger.info(
             "analyzing_code_change", repo=change.repository, sha=change.target_sha
         )
-        try:
-            findings = await self._analyzer.analyze(change)
-            status = "COMPLETED"
-        except Exception as e:
-            logger.error("llm_analysis_failed", error=str(e), repo=change.repository)
-            findings = []
-            status = "FAILED"
+        findings, status = await self._analyzer.analyze(change)
         result = AnalysisResult(
             repository=change.repository,
             sha=change.target_sha,

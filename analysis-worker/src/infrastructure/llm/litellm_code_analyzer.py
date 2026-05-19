@@ -1,73 +1,52 @@
 import structlog
 from typing import List
 from litellm import acompletion
+from litellm import (
+    APIConnectionError,
+    BadGatewayError,
+    InternalServerError,
+    RateLimitError,
+    ServiceUnavailableError,
+    Timeout,
+)
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
+from src.domain.analysis_policy import file_priority, should_skip
 from src.domain.entities import CodeChange
 from src.domain.ports.code_analyzer import CodeAnalyzer
 from src.domain.ports.diff_fetcher import DiffFetcher, FileDiff
 from src.domain.ports.findings_store import FindingsStore
-
-logger = structlog.get_logger()
-
-_PATCH_BUDGET = 12_000  # ~3k tokens; leaves room for RAG context and response
-
-_SKIP_PATTERNS = frozenset(
-    [
-        # lock files (all ecosystems)
-        ".lock",
-        "go.sum",
-        # compiled / bytecode
-        ".pyc",
-        ".class",
-        "__pycache__",
-        # minified / bundled assets
-        ".min.js",
-        ".min.css",
-        ".bundle.js",
-        # build & dependency directories
-        "node_modules/",
-        "vendor/",
-        "dist/",
-        "build/",
-        "target/",
-        # generated code
-        ".pb.go",
-        "_pb2.py",
-        ".generated.",
-        "_generated.",
-        # test snapshots
-        "__snapshots__/",
-        ".snap",
-        # coverage & CI artefacts
-        "lcov.info",
-        "coverage.xml",
-        ".coverage",
-    ]
+from src.infrastructure.llm.analyzer_config import (
+    INSTRUCTIONS,
+    LLM_MAX_ATTEMPTS,
+    LLM_TIMEOUT,
+    LLM_WAIT_MAX,
+    LLM_WAIT_MIN,
+    LLM_WAIT_MULTIPLIER,
+    NONE_LISTED_PLACEHOLDER,
+    NO_PATCH_PLACEHOLDER,
+    PAST_FINDINGS_HEADER,
+    PATCH_BUDGET,
+    PROMPT_TEMPLATE,
+    SIZE_WARNING,
+    SYSTEM_ROLE,
 )
 
-_PRIORITY: dict[str, int] = {
-    "domain": 0,
-    "ports": 0,
-    "application": 1,
-    "use_cases": 1,
-    "infrastructure": 2,
-    "interface": 3,
-    "api": 3,
-    "test": 4,
-    "tests": 4,
-}
+_LLM_RETRYABLE = (
+    RateLimitError,
+    ServiceUnavailableError,
+    APIConnectionError,
+    InternalServerError,
+    BadGatewayError,
+    Timeout,
+)
 
-
-def _file_priority(filename: str) -> int:
-    for part in filename.lower().replace("\\", "/").split("/"):
-        if part in _PRIORITY:
-            return _PRIORITY[part]
-    return 5
-
-
-def _should_skip(filename: str) -> bool:
-    lower = filename.lower()
-    return any(p in lower for p in _SKIP_PATTERNS)
+logger = structlog.get_logger()
 
 
 class LiteLLMCodeAnalyzer(CodeAnalyzer):
@@ -83,37 +62,36 @@ class LiteLLMCodeAnalyzer(CodeAnalyzer):
         self._findings_store = findings_store
         self._diff_fetcher = diff_fetcher
 
-    async def analyze(self, change: CodeChange) -> List[str]:
+    async def analyze(self, change: CodeChange) -> tuple[List[str], str]:
         try:
-            file_diffs = await self._diff_fetcher.fetch(
-                change.repository, change.target_sha
-            )
+            file_diffs = await self._fetch_diffs(change)
+            prompt = await self._build_prompt(change, file_diffs)
+            raw = await self._call_llm(prompt)
+            findings = self._parse_response(raw)
+            await self._findings_store.save(change, findings, file_diffs)
+            return findings, "COMPLETED"
+        except Exception as e:
+            logger.error("analysis_failed", error=str(e))
+            return [], "FAILED"
+
+    async def _fetch_diffs(self, change: CodeChange) -> list[FileDiff]:
+        try:
+            return await self._diff_fetcher.fetch(change.repository, change.target_sha)
         except Exception as e:
             logger.warning("diff_fetch_failed", error=str(e))
-            file_diffs = []
+            return []
 
-        prompt = await self._build_prompt(change, file_diffs)
-        raw = await self._call_llm(prompt)
-        findings = self._parse_response(raw)
-        try:
-            await self._findings_store.save(change, findings, file_diffs)
-        except Exception as e:
-            logger.warning("findings_save_failed", error=str(e))
-        return findings
-
-    async def _build_prompt(
-        self, change: CodeChange, file_diffs: list[FileDiff]
-    ) -> str:
-        # filter and sort by architectural priority
+    def _select_files_for_review(
+        self, file_diffs: list[FileDiff]
+    ) -> tuple[list[str], list[str]]:
+        """Returns (included_chunks, dropped_filenames) within the patch budget."""
         eligible = sorted(
-            [fd for fd in file_diffs if fd.patch and not _should_skip(fd.filename)],
-            key=lambda fd: _file_priority(fd.filename),
+            [fd for fd in file_diffs if fd.patch and not should_skip(fd.filename)],
+            key=lambda fd: file_priority(fd.filename),
         )
-
-        # fill budget file-by-file — never truncate mid-file
         included: list[str] = []
         dropped: list[str] = []
-        budget = _PATCH_BUDGET
+        budget = PATCH_BUDGET
         for fd in eligible:
             chunk = f"--- {fd.filename} ({fd.status}) ---\n{fd.patch}\n"
             if len(chunk) <= budget:
@@ -121,22 +99,42 @@ class LiteLLMCodeAnalyzer(CodeAnalyzer):
                 budget -= len(chunk)
             else:
                 dropped.append(fd.filename)
+        return included, dropped
 
-        patch_section = "\n".join(included) if included else "  (no patch available)"
-        size_note = ""
-        if dropped:
-            size_note = (
-                f"\n⚠ {len(dropped)} file(s) excluded — PR may be too large for full review. "
-                f"Consider splitting the change. Excluded: {', '.join(dropped)}\n"
-            )
-
-        commits = change.raw_payload.get("commits", [])
-        commit_messages = [c["message"] for c in commits if c.get("message")]
-        messages_section = (
-            "\n".join(f"  - {m}" for m in commit_messages) or "  (none listed)"
+    async def _build_prompt(
+        self, change: CodeChange, file_diffs: list[FileDiff]
+    ) -> str:
+        included, dropped = self._select_files_for_review(file_diffs)
+        return PROMPT_TEMPLATE.format(
+            system_role=SYSTEM_ROLE,
+            repository=change.repository,
+            event_type=change.event_type,
+            ref=change.ref,
+            sha=change.target_sha,
+            patch_section=self._format_patch_section(included),
+            size_note=self._format_size_note(dropped),
+            messages_section=self._format_messages_section(change),
+            examples_section=await self._fetch_examples_section(change, file_diffs),
+            instructions=INSTRUCTIONS,
         )
 
-        examples_section = ""
+    def _format_patch_section(self, included: list[str]) -> str:
+        content = "\n".join(included).rstrip("\n") if included else NO_PATCH_PLACEHOLDER
+        return content + "\n"
+
+    def _format_size_note(self, dropped: list[str]) -> str:
+        if not dropped:
+            return ""
+        return SIZE_WARNING.format(count=len(dropped), files=", ".join(dropped))
+
+    def _format_messages_section(self, change: CodeChange) -> str:
+        commits = change.raw_payload.get("commits", [])
+        messages = [c["message"] for c in commits if c.get("message")]
+        return "\n".join(f"  - {m}" for m in messages) or NONE_LISTED_PLACEHOLDER
+
+    async def _fetch_examples_section(
+        self, change: CodeChange, file_diffs: list[FileDiff]
+    ) -> str:
         try:
             similar = await self._findings_store.find_similar(
                 change, file_diffs=file_diffs
@@ -145,33 +143,34 @@ class LiteLLMCodeAnalyzer(CodeAnalyzer):
                 items = "\n".join(
                     f"  [{i + 1}] {f.rule_text}" for i, f in enumerate(similar)
                 )
-                examples_section = f"\nSimilar past findings for reference:\n{items}\n"
+                return f"\n{PAST_FINDINGS_HEADER}\n{items}\n"
         except Exception as e:
             logger.warning("findings_store_unavailable", error=str(e))
+        return ""
 
-        return (
-            f"You are an expert software architect reviewing a code change.\n\n"
-            f"Repository: {change.repository}\n"
-            f"Event: {change.event_type}\n"
-            f"Branch: {change.ref}\n"
-            f"SHA: {change.target_sha}\n\n"
-            f"Commit messages:\n{messages_section}\n\n"
-            f"Changed files (diff):\n{patch_section}\n"
-            f"{size_note}"
-            f"{examples_section}\n"
-            f"Provide a concise list of architectural observations, one per line. "
-            f"Focus on design patterns, potential issues, coupling, and anything worth flagging in a code review."
-        )
-
+    @retry(
+        stop=stop_after_attempt(LLM_MAX_ATTEMPTS),
+        wait=wait_exponential(
+            multiplier=LLM_WAIT_MULTIPLIER, min=LLM_WAIT_MIN, max=LLM_WAIT_MAX
+        ),
+        retry=retry_if_exception_type(_LLM_RETRYABLE),
+        reraise=True,
+        before_sleep=lambda rs: logger.warning(
+            "llm_retry", attempt=rs.attempt_number, error=str(rs.outcome.exception())
+        ),
+    )
     async def _call_llm(self, prompt: str) -> str:
         response = await acompletion(
             model=self._model,
             messages=[{"role": "user", "content": prompt}],
             api_key=self._api_key,
+            timeout=LLM_TIMEOUT,
         )
         return response.choices[0].message.content
 
     def _parse_response(self, raw: str) -> List[str]:
+        if not raw:
+            raise ValueError("LLM returned an empty response")
         findings = []
         for line in raw.splitlines():
             line = line.strip().lstrip("-*•").lstrip("0123456789.)").strip()

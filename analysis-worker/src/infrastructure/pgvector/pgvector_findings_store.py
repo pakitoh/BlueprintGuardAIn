@@ -3,12 +3,19 @@ import structlog
 from typing import List
 
 import asyncpg
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 from src.domain.entities import CodeChange, PastFinding
 from src.domain.ports.diff_fetcher import FileDiff
 from src.domain.ports.embedder import Embedder
 from src.domain.ports.findings_store import FindingsStore
 from src.infrastructure.metrics import rag_retrieval_duration, rag_similar_count
+from src.infrastructure.pgvector.pgvector_config import (
+    EMBED_MAX_ATTEMPTS,
+    EMBED_WAIT_MAX,
+    EMBED_WAIT_MIN,
+    EMBED_WAIT_MULTIPLIER,
+)
 
 logger = structlog.get_logger()
 
@@ -68,6 +75,19 @@ class PgVectorFindingsStore(FindingsStore):
         self._embedder = embedder
         self._pool: asyncpg.Pool | None = None
 
+    @retry(
+        stop=stop_after_attempt(EMBED_MAX_ATTEMPTS),
+        wait=wait_exponential(
+            multiplier=EMBED_WAIT_MULTIPLIER, min=EMBED_WAIT_MIN, max=EMBED_WAIT_MAX
+        ),
+        reraise=True,
+        before_sleep=lambda rs: logger.warning(
+            "embed_retry", attempt=rs.attempt_number, error=str(rs.outcome.exception())
+        ),
+    )
+    async def _embed(self, text: str) -> list[float]:
+        return await self._embedder.embed(text)
+
     async def start(self) -> None:
         self._pool = await asyncpg.create_pool(self._dsn)
         logger.debug("pgvector_pool_created")
@@ -84,7 +104,7 @@ class PgVectorFindingsStore(FindingsStore):
         file_diffs: list[FileDiff] | None = None,
     ) -> List[PastFinding]:
         text = _to_embedding_text(change, file_diffs)
-        vector = await self._embedder.embed(text)
+        vector = await self._embed(text)
         vector_literal = "[" + ",".join(str(v) for v in vector) + "]"
 
         start = time.perf_counter()
@@ -113,18 +133,20 @@ class PgVectorFindingsStore(FindingsStore):
     ) -> None:
         if not findings:
             return
-        text = _to_embedding_text(change, file_diffs)
-        vector = await self._embedder.embed(text)
-        vector_literal = "[" + ",".join(str(v) for v in vector) + "]"
-
-        combined = "\n".join(findings)
-        await self._pool.execute(  # type: ignore[union-attr]
-            """
-            INSERT INTO past_findings (rule_text, context, embedding)
-            VALUES ($1, $2, $3::vector)
-            """,
-            combined,
-            text,
-            vector_literal,
-        )
-        logger.debug("past_finding_saved", repository=change.repository)
+        try:
+            text = _to_embedding_text(change, file_diffs)
+            vector = await self._embed(text)
+            vector_literal = "[" + ",".join(str(v) for v in vector) + "]"
+            combined = "\n".join(findings)
+            await self._pool.execute(  # type: ignore[union-attr]
+                """
+                INSERT INTO past_findings (rule_text, context, embedding)
+                VALUES ($1, $2, $3::vector)
+                """,
+                combined,
+                text,
+                vector_literal,
+            )
+            logger.debug("past_finding_saved", repository=change.repository)
+        except Exception as e:
+            logger.warning("findings_save_failed", error=str(e))

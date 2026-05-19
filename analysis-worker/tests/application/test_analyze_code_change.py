@@ -14,11 +14,12 @@ def a_code_change(repository="paco/blueprint", target_sha="sha123"):
     )
 
 
-def a_process_use_case(findings=None):
+def a_process_use_case(findings=None, status="COMPLETED"):
     mock_sink = AsyncMock()
     mock_analyzer = AsyncMock()
     mock_analyzer.analyze.return_value = (
-        findings if findings is not None else ["finding-1"]
+        findings if findings is not None else ["finding-1"],
+        status,
     )
     use_case = AnalyzeCodeChangeUseCase(
         source=AsyncMock(), sink=mock_sink, analyzer=mock_analyzer
@@ -36,7 +37,8 @@ def a_run_use_case(changes, findings=None):
     mock_sink = AsyncMock()
     mock_analyzer = AsyncMock()
     mock_analyzer.analyze.return_value = (
-        findings if findings is not None else ["finding-1"]
+        findings if findings is not None else ["finding-1"],
+        "COMPLETED",
     )
     return (
         AnalyzeCodeChangeUseCase(
@@ -115,27 +117,24 @@ async def test_process_returns_analysis_result():
 
 
 @pytest.mark.asyncio
-async def test_process_result_status_is_failed_when_analyzer_raises():
-    use_case, mock_sink, mock_analyzer = a_process_use_case()
-    mock_analyzer.analyze.side_effect = Exception("LLM unreachable")
+async def test_process_result_status_is_failed_when_analyzer_returns_failed():
+    use_case, mock_sink, _ = a_process_use_case(findings=[], status="FAILED")
     await use_case._process(a_code_change())
     result = mock_sink.save.call_args[0][0]
     assert result.status == "FAILED"
 
 
 @pytest.mark.asyncio
-async def test_process_result_findings_empty_when_analyzer_raises():
-    use_case, mock_sink, mock_analyzer = a_process_use_case()
-    mock_analyzer.analyze.side_effect = Exception("LLM unreachable")
+async def test_process_result_findings_empty_when_analyzer_returns_failed():
+    use_case, mock_sink, _ = a_process_use_case(findings=[], status="FAILED")
     await use_case._process(a_code_change())
     result = mock_sink.save.call_args[0][0]
     assert result.findings == []
 
 
 @pytest.mark.asyncio
-async def test_process_still_saves_result_when_analyzer_raises():
-    use_case, mock_sink, mock_analyzer = a_process_use_case()
-    mock_analyzer.analyze.side_effect = Exception("LLM unreachable")
+async def test_process_still_saves_result_when_analyzer_returns_failed():
+    use_case, mock_sink, _ = a_process_use_case(findings=[], status="FAILED")
     await use_case._process(a_code_change())
     mock_sink.save.assert_called_once()
 
@@ -175,24 +174,3 @@ async def test_run_maps_each_change_to_correct_result():
     results = [call[0][0] for call in mock_sink.save.call_args_list]
     assert results[0].repository == "org/a" and results[0].sha == "sha1"
     assert results[1].repository == "org/b" and results[1].sha == "sha2"
-
-
-@pytest.mark.asyncio
-async def test_run_continues_processing_after_one_failure():
-    use_case, mock_sink, _ = a_run_use_case(
-        [
-            a_code_change(target_sha="sha1"),
-            a_code_change(target_sha="sha2"),
-            a_code_change(target_sha="sha3"),
-        ]
-    )
-    mock_sink.save.side_effect = [Exception("transient failure"), None, None]
-    await use_case.run()
-    assert mock_sink.save.call_count == 3
-
-
-@pytest.mark.asyncio
-async def test_run_does_not_raise_on_failure():
-    use_case, mock_sink, _ = a_run_use_case([a_code_change()])
-    mock_sink.save.side_effect = Exception("sink down")
-    await use_case.run()

@@ -85,10 +85,9 @@ async def test_kafka_analysis_result_repository_should_send_avro_to_topic(
 
 
 @pytest.mark.asyncio
-async def test_kafka_analysis_result_repository_should_raise_error_on_failure(
+async def test_kafka_analysis_result_repository_logs_and_continues_on_failure(
     repo, mock_kafka
 ):
-    # Arrange
     mock_producer = mock_kafka["producer"]
     mock_producer.send_and_wait.side_effect = Exception("Kafka down")
     result = AnalysisResult(
@@ -98,9 +97,5 @@ async def test_kafka_analysis_result_repository_should_raise_error_on_failure(
         findings=[],
         timestamp=datetime.now(),
     )
-
     await repo.start()
-
-    # Act & Assert
-    with pytest.raises(Exception, match="Failed to save analysis result"):
-        await repo.save(result)
+    await repo.save(result)  # must not raise
