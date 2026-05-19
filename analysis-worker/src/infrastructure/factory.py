@@ -1,6 +1,7 @@
 from schema_registry.client import SchemaRegistryClient
 
 from src.config import settings
+from src.infrastructure.github.github_diff_fetcher import GitHubDiffFetcher
 from src.infrastructure.kafka.analysis_result_repository import (
     KafkaAnalysisResultRepository,
 )
@@ -72,6 +73,7 @@ class InfrastructureFactory:
             model=settings.llm_model,
             api_key=settings.llm_api_key,
             findings_store=self._findings_store,
+            diff_fetcher=GitHubDiffFetcher(token=settings.github_token),
         )
         await self._source.start()
         await self._sink.start()

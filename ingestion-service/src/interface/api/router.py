@@ -4,7 +4,9 @@ import structlog
 from src.interface.api.dto import GithubWebhookDTO
 from src.application.use_cases.process_webhook import ProcessWebhookUseCase
 from src.domain.exceptions import MappingError
-from src.infrastructure.tracing.instrumented_process_webhook import InstrumentedProcessWebhookUseCase
+from src.infrastructure.tracing.instrumented_process_webhook import (
+    InstrumentedProcessWebhookUseCase,
+)
 
 logger = structlog.get_logger()
 router = APIRouter()

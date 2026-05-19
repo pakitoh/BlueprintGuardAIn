@@ -18,8 +18,11 @@ class Settings(BaseSettings):
 
     # LLM
     llm_api_key: str = ""
-    llm_model: str = "gemini/gemini-2.5-flash"
+    llm_model: str = "gemini/gemini-2.0-flash"
     embedding_model: str = "gemini/gemini-embedding-2"
+
+    # GitHub
+    github_token: str = ""
 
     # PostgreSQL / pgvector
     postgres_dsn: str = "postgresql://postgres:postgres@localhost:5432/guardain_db"

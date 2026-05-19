@@ -1,6 +1,7 @@
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 from src.domain.entities import CodeChange, PastFinding
+from src.domain.ports.diff_fetcher import FileDiff
 from src.infrastructure.llm.litellm_code_analyzer import LiteLLMCodeAnalyzer
 
 
@@ -29,15 +30,25 @@ def a_change_with_commits():
     )
 
 
-def an_analyzer(findings_store=None):
+def a_file_diff(
+    filename="src/domain/auth.py", status="modified", patch="+ def handle(): pass"
+):
+    return FileDiff(filename=filename, status=status, patch=patch)
+
+
+def an_analyzer(findings_store=None, diff_fetcher=None):
     if findings_store is None:
         findings_store = AsyncMock()
         findings_store.find_similar = AsyncMock(return_value=[])
         findings_store.save = AsyncMock()
+    if diff_fetcher is None:
+        diff_fetcher = AsyncMock()
+        diff_fetcher.fetch = AsyncMock(return_value=[])
     return LiteLLMCodeAnalyzer(
         model="gemini/gemini-2.0-flash",
         api_key="test-key",
         findings_store=findings_store,
+        diff_fetcher=diff_fetcher,
     )
 
 
@@ -46,32 +57,49 @@ def an_analyzer(findings_store=None):
 
 @pytest.mark.asyncio
 async def test_build_prompt_contains_repository():
-    prompt = await an_analyzer()._build_prompt(a_change(repository="org/my-service"))
+    prompt = await an_analyzer()._build_prompt(
+        a_change(repository="org/my-service"), []
+    )
     assert "org/my-service" in prompt
 
 
 @pytest.mark.asyncio
-async def test_build_prompt_contains_added_files():
-    prompt = await an_analyzer()._build_prompt(a_change_with_commits())
+async def test_build_prompt_includes_file_patch():
+    fd = a_file_diff(filename="src/auth/handler.py", patch="+ def handle(): pass")
+    prompt = await an_analyzer()._build_prompt(a_change_with_commits(), [fd])
     assert "src/auth/handler.py" in prompt
-
-
-@pytest.mark.asyncio
-async def test_build_prompt_contains_modified_files():
-    prompt = await an_analyzer()._build_prompt(a_change_with_commits())
-    assert "src/auth/service.py" in prompt
+    assert "+ def handle(): pass" in prompt
 
 
 @pytest.mark.asyncio
 async def test_build_prompt_contains_commit_message():
-    prompt = await an_analyzer()._build_prompt(a_change_with_commits())
+    prompt = await an_analyzer()._build_prompt(a_change_with_commits(), [])
     assert "Refactor auth module" in prompt
 
 
 @pytest.mark.asyncio
 async def test_build_prompt_handles_empty_payload():
-    prompt = await an_analyzer()._build_prompt(a_change(raw_payload={}))
+    prompt = await an_analyzer()._build_prompt(a_change(raw_payload={}), [])
     assert "none listed" in prompt
+
+
+@pytest.mark.asyncio
+async def test_build_prompt_skips_lock_files():
+    fd = a_file_diff(filename="poetry.lock", patch="+ some lock content")
+    prompt = await an_analyzer()._build_prompt(a_change(), [fd])
+    assert "poetry.lock" not in prompt
+
+
+@pytest.mark.asyncio
+async def test_build_prompt_includes_size_warning_when_files_dropped():
+    big_patch = "+" + "x" * 3000
+    fds = [
+        a_file_diff(filename=f"src/domain/file{i}.py", patch=big_patch)
+        for i in range(10)
+    ]
+    prompt = await an_analyzer()._build_prompt(a_change(), fds)
+    assert "excluded" in prompt
+    assert "too large" in prompt
 
 
 @pytest.mark.asyncio
@@ -81,7 +109,9 @@ async def test_build_prompt_includes_similar_findings_when_present():
         return_value=[PastFinding(rule_text="Avoid cross-layer imports", context="ctx")]
     )
     store.save = AsyncMock()
-    prompt = await an_analyzer(findings_store=store)._build_prompt(a_change_with_commits())
+    prompt = await an_analyzer(findings_store=store)._build_prompt(
+        a_change_with_commits(), []
+    )
     assert "Avoid cross-layer imports" in prompt
 
 
@@ -90,7 +120,7 @@ async def test_build_prompt_still_works_when_store_raises():
     store = AsyncMock()
     store.find_similar = AsyncMock(side_effect=Exception("DB down"))
     store.save = AsyncMock()
-    prompt = await an_analyzer(findings_store=store)._build_prompt(a_change())
+    prompt = await an_analyzer(findings_store=store)._build_prompt(a_change(), [])
     assert "architectural observations" in prompt
 
 
@@ -153,9 +183,11 @@ async def test_analyze_saves_to_store(mock_litellm):
     store = AsyncMock()
     store.find_similar = AsyncMock(return_value=[])
     store.save = AsyncMock()
+    diff_fetcher = AsyncMock()
+    diff_fetcher.fetch = AsyncMock(return_value=[])
     change = a_change_with_commits()
-    await an_analyzer(findings_store=store).analyze(change)
-    store.save.assert_awaited_once_with(change, ["Finding X"])
+    await an_analyzer(findings_store=store, diff_fetcher=diff_fetcher).analyze(change)
+    store.save.assert_awaited_once_with(change, ["Finding X"], [])
 
 
 @pytest.mark.asyncio
@@ -166,3 +198,12 @@ async def test_analyze_still_returns_findings_when_save_fails(mock_litellm):
     store.save = AsyncMock(side_effect=Exception("write error"))
     findings = await an_analyzer(findings_store=store).analyze(a_change())
     assert findings == ["Finding Y"]
+
+
+@pytest.mark.asyncio
+async def test_analyze_continues_when_diff_fetch_fails(mock_litellm):
+    mock_litellm.return_value.choices[0].message.content = "- Finding Z"
+    diff_fetcher = AsyncMock()
+    diff_fetcher.fetch = AsyncMock(side_effect=Exception("GitHub API down"))
+    findings = await an_analyzer(diff_fetcher=diff_fetcher).analyze(a_change())
+    assert findings == ["Finding Z"]

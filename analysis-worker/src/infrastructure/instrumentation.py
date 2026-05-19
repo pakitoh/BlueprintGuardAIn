@@ -144,4 +144,5 @@ def _setup_litellm_otel():
     current active span and share the same trace_id.
     """
     import litellm
+
     litellm.callbacks = ["otel"]

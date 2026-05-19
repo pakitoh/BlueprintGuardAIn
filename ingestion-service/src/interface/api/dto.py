@@ -1,10 +1,18 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from typing import Optional, Dict, Any
 
 
 class RepositoryDTO(BaseModel):
     full_name: str
     html_url: str
+
+
+class CommitDTO(BaseModel):
+    id: str
+    message: str
+    added: list[str] = []
+    modified: list[str] = []
+    removed: list[str] = []
 
 
 class PullRequestDTO(BaseModel):
@@ -25,4 +33,5 @@ class GithubWebhookDTO(BaseModel):
     ref: Optional[str] = None
     after: Optional[str] = None
     repository: RepositoryDTO
+    commits: list[CommitDTO] = []
     pull_request: Optional[PullRequestDTO] = None

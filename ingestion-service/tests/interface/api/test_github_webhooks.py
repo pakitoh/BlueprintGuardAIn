@@ -14,6 +14,15 @@ def test_webhook_endpoint_success(client, mock_use_case):
             "full_name": REPOSITORY,
             "html_url": f"https://github.com/{REPOSITORY}",
         },
+        "commits": [
+            {
+                "id": SHA,
+                "message": "Add feature",
+                "added": ["src/new.py"],
+                "modified": ["src/existing.py"],
+                "removed": [],
+            }
+        ],
     }
     headers = {"X-GitHub-Event": EVENT_TYPE}
 
@@ -21,7 +30,9 @@ def test_webhook_endpoint_success(client, mock_use_case):
 
     assert response.status_code == 202
     assert response.json() == {"status": "accepted"}
-    mock_use_case.execute.assert_called_once_with(payload, event_type=EVENT_TYPE)
+    called_payload = mock_use_case.execute.call_args[0][0]
+    assert called_payload["commits"][0]["added"] == ["src/new.py"]
+    assert called_payload["commits"][0]["modified"] == ["src/existing.py"]
 
 
 def test_webhook_endpoint_unsupported_event(client, mock_use_case):

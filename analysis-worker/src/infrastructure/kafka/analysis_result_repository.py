@@ -73,7 +73,9 @@ class KafkaAnalysisResultRepository(AnalysisResultRepository):
             self._ensure_schema_registered()
             data = asdict(result)
             data["timestamp"] = result.timestamp.isoformat()
-            data["ingested_at"] = result.ingested_at.isoformat() if result.ingested_at else None
+            data["ingested_at"] = (
+                result.ingested_at.isoformat() if result.ingested_at else None
+            )
             payload = self._serialize_avro(data)
             key = result.repository.encode("utf-8")
 
