@@ -67,7 +67,9 @@ class LiteLLMCodeAnalyzer(CodeAnalyzer):
             file_diffs = await self._fetch_diffs(change)
             prompt = await self._build_prompt(change, file_diffs)
             raw = await self._call_llm(prompt)
+            logger.debug("llm_raw_response", chars=len(raw or ""), preview=(raw or "")[:300])
             findings = self._parse_response(raw)
+            logger.info("llm_findings", count=len(findings), findings=findings)
             await self._findings_store.save(change, findings, file_diffs)
             return findings, "COMPLETED"
         except Exception as e:
@@ -105,7 +107,8 @@ class LiteLLMCodeAnalyzer(CodeAnalyzer):
         self, change: CodeChange, file_diffs: list[FileDiff]
     ) -> str:
         included, dropped = self._select_files_for_review(file_diffs)
-        return PROMPT_TEMPLATE.format(
+        examples_section = await self._fetch_examples_section(change, file_diffs)
+        prompt = PROMPT_TEMPLATE.format(
             system_role=SYSTEM_ROLE,
             repository=change.repository,
             event_type=change.event_type,
@@ -114,9 +117,18 @@ class LiteLLMCodeAnalyzer(CodeAnalyzer):
             patch_section=self._format_patch_section(included),
             size_note=self._format_size_note(dropped),
             messages_section=self._format_messages_section(change),
-            examples_section=await self._fetch_examples_section(change, file_diffs),
+            examples_section=examples_section,
             instructions=INSTRUCTIONS,
         )
+        logger.info(
+            "prompt_built",
+            repo=change.repository,
+            files_included=len(included),
+            files_dropped=dropped if dropped else None,
+            prompt_chars=len(prompt),
+            rag_examples=bool(examples_section),
+        )
+        return prompt
 
     def _format_patch_section(self, included: list[str]) -> str:
         content = "\n".join(included).rstrip("\n") if included else NO_PATCH_PLACEHOLDER
@@ -140,6 +152,11 @@ class LiteLLMCodeAnalyzer(CodeAnalyzer):
                 change, file_diffs=file_diffs
             )
             if similar:
+                logger.info(
+                    "rag_examples_found",
+                    count=len(similar),
+                    rules=[f.rule_text for f in similar],
+                )
                 items = "\n".join(
                     f"  [{i + 1}] {f.rule_text}" for i, f in enumerate(similar)
                 )

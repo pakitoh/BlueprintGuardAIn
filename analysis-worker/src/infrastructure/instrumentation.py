@@ -58,6 +58,7 @@ def setup_logging(resource):
     overrides = {
         "aiokafka": logging.INFO,
         "asyncio": logging.INFO,
+        "LiteLLM": logging.ERROR,
     }
     for name, level in (overrides or {}).items():
         logging.getLogger(name).setLevel(level)
