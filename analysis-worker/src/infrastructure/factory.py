@@ -2,6 +2,7 @@ from schema_registry.client import SchemaRegistryClient
 
 from src.config import settings
 from src.application.services.finding_parser import FindingParser
+from src.application.services.findings_validator import FindingsValidator
 from src.application.services.llm_code_analyzer import LLMCodeAnalyzer
 from src.application.services.prompt_composer import PromptComposer
 from src.infrastructure.github.github_diff_fetcher import GitHubDiffFetcher
@@ -73,14 +74,15 @@ class InfrastructureFactory:
             schema_str=schema_str,
         )
         self._analyzer = LLMCodeAnalyzer(
+            diff_fetcher=GitHubDiffFetcher(token=settings.github_token),
+            prompt_composer=PromptComposer(),
             llm_client=LiteLLMClient(
                 model=settings.llm_model,
                 api_key=settings.llm_api_key,
             ),
-            diff_fetcher=GitHubDiffFetcher(token=settings.github_token),
             findings_store=self._findings_store,
-            prompt_composer=PromptComposer(),
             finding_parser=FindingParser(),
+            findings_validator=FindingsValidator(),
         )
         await self._source.start()
         await self._sink.start()

@@ -135,3 +135,12 @@ async def test_save_logs_warning_and_continues_on_error():
     pool.execute = AsyncMock(side_effect=Exception("DB unavailable"))
     store, _ = a_store(pool=pool)
     await store.save(a_change_with_commits(), ["Finding A"])
+
+
+@pytest.mark.asyncio
+async def test_find_similar_returns_empty_list_on_error():
+    pool = AsyncMock()
+    pool.fetch = AsyncMock(side_effect=Exception("DB unavailable"))
+    store, _ = a_store(pool=pool)
+    result = await store.find_similar(a_change_with_commits())
+    assert result == []

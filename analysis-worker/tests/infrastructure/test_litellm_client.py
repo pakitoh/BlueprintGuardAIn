@@ -11,8 +11,8 @@ def a_client():
 
 
 @pytest.mark.asyncio
-async def test_complete_passes_correct_model_and_prompt(mock_litellm):
-    await a_client().complete("my prompt")
+async def test_call_passes_correct_model_and_prompt(mock_litellm):
+    await a_client().call("my prompt")
     mock_litellm.assert_awaited_once_with(
         model="gemini/gemini-2.0-flash",
         messages=[{"role": "user", "content": "my prompt"}],
@@ -22,14 +22,14 @@ async def test_complete_passes_correct_model_and_prompt(mock_litellm):
 
 
 @pytest.mark.asyncio
-async def test_complete_returns_response_content(mock_litellm):
+async def test_call_returns_response_content(mock_litellm):
     mock_litellm.return_value.choices[0].message.content = "LLM finding"
-    result = await a_client().complete("prompt")
+    result = await a_client().call("prompt")
     assert result == "LLM finding"
 
 
 @pytest.mark.asyncio
-async def test_complete_retries_on_service_unavailable(mock_litellm):
+async def test_call_retries_on_service_unavailable(mock_litellm):
     good_response = MagicMock()
     good_response.choices[0].message.content = "Finding after retry"
     mock_response = MagicMock()
@@ -43,6 +43,6 @@ async def test_complete_retries_on_service_unavailable(mock_litellm):
         ),
         good_response,
     ]
-    result = await a_client().complete("any prompt")
+    result = await a_client().call("any prompt")
     assert result == "Finding after retry"
     assert mock_litellm.await_count == 2

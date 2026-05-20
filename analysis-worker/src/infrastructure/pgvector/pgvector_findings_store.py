@@ -103,27 +103,33 @@ class PgVectorFindingsStore(FindingsStore):
         limit: int = 3,
         file_diffs: list[FileDiff] | None = None,
     ) -> List[PastFinding]:
-        text = _to_embedding_text(change, file_diffs)
-        vector = await self._embed(text)
-        vector_literal = "[" + ",".join(str(v) for v in vector) + "]"
+        try:
+            text = _to_embedding_text(change, file_diffs)
+            vector = await self._embed(text)
+            vector_literal = "[" + ",".join(str(v) for v in vector) + "]"
 
-        start = time.perf_counter()
-        rows = await self._pool.fetch(  # type: ignore[union-attr]
-            """
-            SELECT rule_text, context
-            FROM   past_findings
-            ORDER  BY embedding <=> $1::vector
-            LIMIT  $2
-            """,
-            vector_literal,
-            limit,
-        )
-        rag_retrieval_duration.record(time.perf_counter() - start)
-        findings = [
-            PastFinding(rule_text=r["rule_text"], context=r["context"]) for r in rows
-        ]
-        rag_similar_count.record(len(findings))
-        return findings
+            start = time.perf_counter()
+            rows = await self._pool.fetch(  # type: ignore[union-attr]
+                """
+                SELECT rule_text, context
+                FROM   past_findings
+                ORDER  BY embedding <=> $1::vector
+                LIMIT  $2
+                """,
+                vector_literal,
+                limit,
+            )
+            rag_retrieval_duration.record(time.perf_counter() - start)
+            findings = [
+                PastFinding(rule_text=r["rule_text"], context=r["context"]) for r in rows
+            ]
+            rag_similar_count.record(len(findings))
+            if findings:
+                logger.info("rag_examples_found", count=len(findings), rules=[f.rule_text for f in findings])
+            return findings
+        except Exception as e:
+            logger.warning("findings_store_unavailable", error=str(e))
+            return []
 
     async def save(
         self,

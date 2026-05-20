@@ -42,21 +42,25 @@ class GitHubDiffFetcher(DiffFetcher):
         ),
     )
     async def fetch(self, repository: str, sha: str) -> list[FileDiff]:
-        url = f"{self._BASE}/repos/{repository}/commits/{sha}"
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(url, headers=self._headers, timeout=GITHUB_TIMEOUT)
-            resp.raise_for_status()
-        logger.debug(
-            "github_diff_fetched",
-            repository=repository,
-            sha=sha,
-            files=len(resp.json().get("files", [])),
-        )
-        return [
-            FileDiff(
-                filename=f["filename"],
-                status=f["status"],
-                patch=f.get("patch", ""),
+        try:
+            url = f"{self._BASE}/repos/{repository}/commits/{sha}"
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(url, headers=self._headers, timeout=GITHUB_TIMEOUT)
+                resp.raise_for_status()
+            logger.debug(
+                "github_diff_fetched",
+                repository=repository,
+                sha=sha,
+                files=len(resp.json().get("files", [])),
             )
-            for f in resp.json().get("files", [])
-        ]
+            return [
+                FileDiff(
+                    filename=f["filename"],
+                    status=f["status"],
+                    patch=f.get("patch", ""),
+                )
+                for f in resp.json().get("files", [])
+            ]
+        except Exception as e:
+            logger.warning("diff_fetch_failed", repository=repository, sha=sha, error=str(e))
+            return []

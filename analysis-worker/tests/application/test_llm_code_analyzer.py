@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock
 from src.domain.entities import CodeChange, PastFinding
 from src.domain.ports.diff_fetcher import FileDiff
 from src.application.services.finding_parser import FindingParser
+from src.application.services.findings_validator import FindingsValidator
 from src.application.services.llm_code_analyzer import LLMCodeAnalyzer
 from src.application.services.prompt_composer import PromptComposer
 
@@ -33,7 +34,7 @@ def a_file_diff(filename="src/domain/auth.py", status="modified", patch="+ def h
 def an_analyzer(llm_client=None, diff_fetcher=None, findings_store=None):
     if llm_client is None:
         llm_client = AsyncMock()
-        llm_client.complete = AsyncMock(return_value="- Default finding")
+        llm_client.call = AsyncMock(return_value="- Default finding")
     if diff_fetcher is None:
         diff_fetcher = AsyncMock()
         diff_fetcher.fetch = AsyncMock(return_value=[])
@@ -42,11 +43,12 @@ def an_analyzer(llm_client=None, diff_fetcher=None, findings_store=None):
         findings_store.find_similar = AsyncMock(return_value=[])
         findings_store.save = AsyncMock()
     return LLMCodeAnalyzer(
-        llm_client=llm_client,
         diff_fetcher=diff_fetcher,
-        findings_store=findings_store,
         prompt_composer=PromptComposer(),
+        llm_client=llm_client,
+        findings_store=findings_store,
         finding_parser=FindingParser(),
+        findings_validator=FindingsValidator(),
     )
 
 
@@ -56,7 +58,7 @@ def an_analyzer(llm_client=None, diff_fetcher=None, findings_store=None):
 @pytest.mark.asyncio
 async def test_analyze_returns_parsed_findings():
     llm_client = AsyncMock()
-    llm_client.complete = AsyncMock(return_value="- Concern A\n- Concern B")
+    llm_client.call = AsyncMock(return_value="- Concern A\n- Concern B")
     findings, status = await an_analyzer(llm_client=llm_client).analyze(a_change_with_commits())
     assert findings == ["Concern A", "Concern B"]
     assert status == "COMPLETED"
@@ -65,7 +67,7 @@ async def test_analyze_returns_parsed_findings():
 @pytest.mark.asyncio
 async def test_analyze_returns_failed_status_on_llm_error():
     llm_client = AsyncMock()
-    llm_client.complete = AsyncMock(side_effect=Exception("LLM unavailable"))
+    llm_client.call = AsyncMock(side_effect=Exception("LLM unavailable"))
     findings, status = await an_analyzer(llm_client=llm_client).analyze(a_change())
     assert findings == []
     assert status == "FAILED"
@@ -74,7 +76,7 @@ async def test_analyze_returns_failed_status_on_llm_error():
 @pytest.mark.asyncio
 async def test_analyze_returns_failed_status_when_llm_returns_empty_response():
     llm_client = AsyncMock()
-    llm_client.complete = AsyncMock(return_value="")
+    llm_client.call = AsyncMock(return_value="")
     findings, status = await an_analyzer(llm_client=llm_client).analyze(a_change())
     assert findings == []
     assert status == "FAILED"
@@ -83,7 +85,7 @@ async def test_analyze_returns_failed_status_when_llm_returns_empty_response():
 @pytest.mark.asyncio
 async def test_analyze_returns_failed_status_when_llm_returns_none():
     llm_client = AsyncMock()
-    llm_client.complete = AsyncMock(return_value=None)
+    llm_client.call = AsyncMock(return_value=None)
     findings, status = await an_analyzer(llm_client=llm_client).analyze(a_change())
     assert findings == []
     assert status == "FAILED"
@@ -92,7 +94,7 @@ async def test_analyze_returns_failed_status_when_llm_returns_none():
 @pytest.mark.asyncio
 async def test_analyze_saves_to_store():
     llm_client = AsyncMock()
-    llm_client.complete = AsyncMock(return_value="- Finding X")
+    llm_client.call = AsyncMock(return_value="- Finding X")
     findings_store = AsyncMock()
     findings_store.find_similar = AsyncMock(return_value=[])
     findings_store.save = AsyncMock()
@@ -106,11 +108,11 @@ async def test_analyze_saves_to_store():
 
 
 @pytest.mark.asyncio
-async def test_analyze_continues_when_diff_fetch_fails():
+async def test_analyze_continues_when_diff_fetch_returns_empty():
     llm_client = AsyncMock()
-    llm_client.complete = AsyncMock(return_value="- Finding Z")
+    llm_client.call = AsyncMock(return_value="- Finding Z")
     diff_fetcher = AsyncMock()
-    diff_fetcher.fetch = AsyncMock(side_effect=Exception("GitHub API down"))
+    diff_fetcher.fetch = AsyncMock(return_value=[])
     findings, status = await an_analyzer(llm_client=llm_client, diff_fetcher=diff_fetcher).analyze(
         a_change()
     )
@@ -130,14 +132,6 @@ async def test_fetch_diffs_returns_diffs_from_fetcher():
     assert result == [fd]
 
 
-@pytest.mark.asyncio
-async def test_fetch_diffs_returns_empty_list_on_error():
-    diff_fetcher = AsyncMock()
-    diff_fetcher.fetch = AsyncMock(side_effect=Exception("network error"))
-    result = await an_analyzer(diff_fetcher=diff_fetcher)._fetch_diffs(a_change())
-    assert result == []
-
-
 # --- _fetch_past_findings ---
 
 
@@ -154,9 +148,9 @@ async def test_fetch_past_findings_returns_findings_from_store():
 
 
 @pytest.mark.asyncio
-async def test_fetch_past_findings_returns_empty_on_store_error():
+async def test_fetch_past_findings_returns_empty_when_store_returns_empty():
     findings_store = AsyncMock()
-    findings_store.find_similar = AsyncMock(side_effect=Exception("DB down"))
+    findings_store.find_similar = AsyncMock(return_value=[])
     findings_store.save = AsyncMock()
     result = await an_analyzer(findings_store=findings_store)._fetch_past_findings(
         a_change(), []

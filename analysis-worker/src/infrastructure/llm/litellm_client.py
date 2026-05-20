@@ -47,11 +47,13 @@ class LiteLLMClient(LLMClient):
             "llm_retry", attempt=rs.attempt_number, error=str(rs.outcome.exception())
         ),
     )
-    async def complete(self, prompt: str) -> str:
+    async def call(self, prompt: str) -> str:
         response = await acompletion(
             model=self._model,
             messages=[{"role": "user", "content": prompt}],
             api_key=self._api_key,
             timeout=LLM_TIMEOUT,
         )
-        return response.choices[0].message.content
+        content = response.choices[0].message.content
+        logger.debug("llm_raw_response", chars=len(content or ""), preview=(content or "")[:300])
+        return content
