@@ -46,7 +46,7 @@ class GitHubDiffFetcher(DiffFetcher):
             url = f"{self._BASE}/repos/{repository}/commits/{sha}"
             async with httpx.AsyncClient() as client:
                 resp = await client.get(
-                    url, headers=self._headers, timeout=GITHUB_TIMEOUT
+                    url, headers=self._headers, timeout=GITHUB_TIMEOUT, follow_redirects=True
                 )
                 resp.raise_for_status()
             logger.debug(
