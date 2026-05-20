@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Blueprint GuardAIn</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/diff2html/bundles/css/diff2html.min.css" />
+  <link rel="stylesheet" href="/static/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/diff2html/bundles/js/diff2html-ui.min.js"></script>
+</head>
+<body>
+<header>
+  <img src="/static/logo.png" alt="Blueprint GuardAIn" />
+  <h1>Blueprint GuardAIn</h1>
+</header>
+<main>
+  <aside id="sidebar">
+    <h2>Actions</h2>
+    <div id="buttons">
+      <button id="trigger">▶ Run random analysis</button>
+    </div>
+    <h2>Recent analyses</h2>
+    <div id="cards"></div>
+  </aside>
+  <section id="detail">
+    <p class="empty">Select an analysis or trigger a new one.</p>
+  </section>
+</main>
+<script src="/static/app.js"></script>
+</body>
+</html>
