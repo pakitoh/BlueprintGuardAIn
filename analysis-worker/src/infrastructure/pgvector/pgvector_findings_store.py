@@ -121,11 +121,16 @@ class PgVectorFindingsStore(FindingsStore):
             )
             rag_retrieval_duration.record(time.perf_counter() - start)
             findings = [
-                PastFinding(rule_text=r["rule_text"], context=r["context"]) for r in rows
+                PastFinding(rule_text=r["rule_text"], context=r["context"])
+                for r in rows
             ]
             rag_similar_count.record(len(findings))
             if findings:
-                logger.info("rag_examples_found", count=len(findings), rules=[f.rule_text for f in findings])
+                logger.info(
+                    "rag_examples_found",
+                    count=len(findings),
+                    rules=[f.rule_text for f in findings],
+                )
             return findings
         except Exception as e:
             logger.warning("findings_store_unavailable", error=str(e))

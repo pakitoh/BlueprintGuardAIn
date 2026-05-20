@@ -19,8 +19,13 @@ def a_github_response(files: list[dict]) -> MagicMock:
 async def test_fetch_returns_file_diffs(mocker):
     files = [{"filename": "src/main.py", "status": "modified", "patch": "+ new line"}]
     mock_client = AsyncMock()
-    mock_client.__aenter__.return_value.get = AsyncMock(return_value=a_github_response(files))
-    mocker.patch("src.infrastructure.github.github_diff_fetcher.httpx.AsyncClient", return_value=mock_client)
+    mock_client.__aenter__.return_value.get = AsyncMock(
+        return_value=a_github_response(files)
+    )
+    mocker.patch(
+        "src.infrastructure.github.github_diff_fetcher.httpx.AsyncClient",
+        return_value=mock_client,
+    )
 
     result = await a_fetcher().fetch("org/repo", "abc123")
 
@@ -36,7 +41,10 @@ async def test_fetch_returns_empty_list_on_error(mocker):
     mock_client.__aenter__.return_value.get = AsyncMock(
         side_effect=httpx.NetworkError("connection refused")
     )
-    mocker.patch("src.infrastructure.github.github_diff_fetcher.httpx.AsyncClient", return_value=mock_client)
+    mocker.patch(
+        "src.infrastructure.github.github_diff_fetcher.httpx.AsyncClient",
+        return_value=mock_client,
+    )
 
     result = await a_fetcher().fetch("org/repo", "abc123")
 

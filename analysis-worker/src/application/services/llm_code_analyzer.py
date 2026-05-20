@@ -48,12 +48,14 @@ class LLMCodeAnalyzer(CodeAnalyzer):
             logger.error("analysis_failed", error=str(e))
             return [], "FAILED"
 
-    async def _analyze_with_retry(self, prompt: str, diffs: list[FileDiff]) -> list[str]:
+    async def _analyze_with_retry(
+        self, prompt: str, diffs: list[FileDiff]
+    ) -> list[str]:
         current_prompt = prompt
         findings: list[str] = []
         for attempt in range(MAX_VALIDATION_RETRIES + 1):
-            raw = await self._llm_client.call(current_prompt)
-            findings = self._finding_parser.parse(raw)
+            response = await self._llm_client.call(current_prompt)
+            findings = self._finding_parser.parse(response.content)
             try:
                 self._findings_validator.validate(findings, diffs)
                 return findings
@@ -61,7 +63,11 @@ class LLMCodeAnalyzer(CodeAnalyzer):
                 logger.warning("llm_empty_findings", attempt=attempt)
                 current_prompt = prompt + RETRY_EMPTY_FINDINGS
             except DuplicateFindingsError as e:
-                logger.warning("llm_duplicate_findings", attempt=attempt, duplicate_pairs=len(e.pairs))
+                logger.warning(
+                    "llm_duplicate_findings",
+                    attempt=attempt,
+                    duplicate_pairs=len(e.pairs),
+                )
                 current_prompt = prompt + RETRY_DUPLICATE_FINDINGS
         logger.warning("llm_validation_exhausted", final_count=len(findings))
         return findings

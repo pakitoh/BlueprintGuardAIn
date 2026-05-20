@@ -1,6 +1,9 @@
 from src.domain.entities import CodeChange, PastFinding
 from src.domain.ports.diff_fetcher import FileDiff
-from src.application.services.prompt_config import NONE_LISTED_PLACEHOLDER, NO_PATCH_PLACEHOLDER
+from src.application.services.prompt_config import (
+    NONE_LISTED_PLACEHOLDER,
+    NO_PATCH_PLACEHOLDER,
+)
 from src.application.services.prompt_composer import PromptComposer
 
 
@@ -29,7 +32,9 @@ def a_change_with_commits():
     )
 
 
-def a_file_diff(filename="src/domain/auth.py", status="modified", patch="+ def handle(): pass"):
+def a_file_diff(
+    filename="src/domain/auth.py", status="modified", patch="+ def handle(): pass"
+):
     return FileDiff(filename=filename, status=status, patch=patch)
 
 
@@ -70,7 +75,10 @@ def test_build_skips_lock_files():
 
 def test_build_includes_size_warning_when_files_dropped():
     big_patch = "+" + "x" * 3000
-    fds = [a_file_diff(filename=f"src/domain/file{i}.py", patch=big_patch) for i in range(10)]
+    fds = [
+        a_file_diff(filename=f"src/domain/file{i}.py", patch=big_patch)
+        for i in range(10)
+    ]
     prompt = a_composer().build(a_change(), fds, [])
     assert "excluded" in prompt
     assert "too large" in prompt
@@ -149,7 +157,9 @@ def test_select_files_excludes_lock_files():
 
 def test_select_files_prioritises_domain_over_tests():
     domain_fd = a_file_diff(filename="src/domain/entity.py", patch="+ class Foo: pass")
-    test_fd = a_file_diff(filename="tests/test_entity.py", patch="+ def test_foo(): pass")
+    test_fd = a_file_diff(
+        filename="tests/test_entity.py", patch="+ def test_foo(): pass"
+    )
     included, _ = a_composer()._select_files_for_review([test_fd, domain_fd])
     assert "domain/entity.py" in included[0]
     assert "test_entity.py" in included[1]
@@ -157,7 +167,10 @@ def test_select_files_prioritises_domain_over_tests():
 
 def test_select_files_drops_files_beyond_budget():
     big_patch = "+" + "x" * 3000
-    fds = [a_file_diff(filename=f"src/domain/file{i}.py", patch=big_patch) for i in range(10)]
+    fds = [
+        a_file_diff(filename=f"src/domain/file{i}.py", patch=big_patch)
+        for i in range(10)
+    ]
     included, dropped = a_composer()._select_files_for_review(fds)
     assert len(included) + len(dropped) == 10
     assert len(dropped) > 0

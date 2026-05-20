@@ -20,6 +20,15 @@ class PastFinding:
 
 
 @dataclass(frozen=True)
+class LLMResponse:
+    content: str
+    prompt_tokens: int
+    completion_tokens: int
+    latency_seconds: float
+    cost_usd: float
+
+
+@dataclass(frozen=True)
 class AnalysisResult:
     repository: str
     sha: str

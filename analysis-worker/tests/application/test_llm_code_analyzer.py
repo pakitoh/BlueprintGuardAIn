@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import AsyncMock
 
-from src.domain.entities import CodeChange, PastFinding
+from src.domain.entities import CodeChange, LLMResponse, PastFinding
 from src.domain.ports.diff_fetcher import FileDiff
 from src.application.services.finding_parser import FindingParser
 from src.application.services.findings_validator import FindingsValidator
@@ -22,19 +22,38 @@ def a_change(repository="org/service", raw_payload=None):
 def a_change_with_commits():
     return a_change(
         raw_payload={
-            "commits": [{"message": "Refactor auth module", "added": [], "modified": [], "removed": []}]
+            "commits": [
+                {
+                    "message": "Refactor auth module",
+                    "added": [],
+                    "modified": [],
+                    "removed": [],
+                }
+            ]
         }
     )
 
 
-def a_file_diff(filename="src/domain/auth.py", status="modified", patch="+ def handle(): pass"):
+def a_file_diff(
+    filename="src/domain/auth.py", status="modified", patch="+ def handle(): pass"
+):
     return FileDiff(filename=filename, status=status, patch=patch)
+
+
+def an_llm_response(content: str) -> LLMResponse:
+    return LLMResponse(
+        content=content,
+        prompt_tokens=10,
+        completion_tokens=5,
+        latency_seconds=0.5,
+        cost_usd=0.001,
+    )
 
 
 def an_analyzer(llm_client=None, diff_fetcher=None, findings_store=None):
     if llm_client is None:
         llm_client = AsyncMock()
-        llm_client.call = AsyncMock(return_value="- Default finding")
+        llm_client.call = AsyncMock(return_value=an_llm_response("- Default finding"))
     if diff_fetcher is None:
         diff_fetcher = AsyncMock()
         diff_fetcher.fetch = AsyncMock(return_value=[])
@@ -58,8 +77,12 @@ def an_analyzer(llm_client=None, diff_fetcher=None, findings_store=None):
 @pytest.mark.asyncio
 async def test_analyze_returns_parsed_findings():
     llm_client = AsyncMock()
-    llm_client.call = AsyncMock(return_value="- Concern A\n- Concern B")
-    findings, status = await an_analyzer(llm_client=llm_client).analyze(a_change_with_commits())
+    llm_client.call = AsyncMock(
+        return_value=an_llm_response("- Concern A\n- Concern B")
+    )
+    findings, status = await an_analyzer(llm_client=llm_client).analyze(
+        a_change_with_commits()
+    )
     assert findings == ["Concern A", "Concern B"]
     assert status == "COMPLETED"
 
@@ -76,16 +99,7 @@ async def test_analyze_returns_failed_status_on_llm_error():
 @pytest.mark.asyncio
 async def test_analyze_returns_failed_status_when_llm_returns_empty_response():
     llm_client = AsyncMock()
-    llm_client.call = AsyncMock(return_value="")
-    findings, status = await an_analyzer(llm_client=llm_client).analyze(a_change())
-    assert findings == []
-    assert status == "FAILED"
-
-
-@pytest.mark.asyncio
-async def test_analyze_returns_failed_status_when_llm_returns_none():
-    llm_client = AsyncMock()
-    llm_client.call = AsyncMock(return_value=None)
+    llm_client.call = AsyncMock(return_value=an_llm_response(""))
     findings, status = await an_analyzer(llm_client=llm_client).analyze(a_change())
     assert findings == []
     assert status == "FAILED"
@@ -94,7 +108,7 @@ async def test_analyze_returns_failed_status_when_llm_returns_none():
 @pytest.mark.asyncio
 async def test_analyze_saves_to_store():
     llm_client = AsyncMock()
-    llm_client.call = AsyncMock(return_value="- Finding X")
+    llm_client.call = AsyncMock(return_value=an_llm_response("- Finding X"))
     findings_store = AsyncMock()
     findings_store.find_similar = AsyncMock(return_value=[])
     findings_store.save = AsyncMock()
@@ -110,13 +124,11 @@ async def test_analyze_saves_to_store():
 @pytest.mark.asyncio
 async def test_analyze_continues_when_diff_fetch_returns_empty():
     llm_client = AsyncMock()
-    llm_client.call = AsyncMock(return_value="- Finding Z")
+    llm_client.call = AsyncMock(return_value=an_llm_response("- Finding Z"))
     diff_fetcher = AsyncMock()
     diff_fetcher.fetch = AsyncMock(return_value=[])
-    findings, status = await an_analyzer(llm_client=llm_client, diff_fetcher=diff_fetcher).analyze(
-        a_change()
-    )
+    findings, status = await an_analyzer(
+        llm_client=llm_client, diff_fetcher=diff_fetcher
+    ).analyze(a_change())
     assert findings == ["Finding Z"]
     assert status == "COMPLETED"
-
-

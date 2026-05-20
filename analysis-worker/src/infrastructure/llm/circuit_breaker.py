@@ -46,7 +46,10 @@ class _CircuitBreakerState:
         async with self.lock:
             self.failure_count += 1
             self.last_failure_time = time.monotonic()
-            if self.failure_count >= self.failure_threshold and self.state != _State.OPEN:
+            if (
+                self.failure_count >= self.failure_threshold
+                and self.state != _State.OPEN
+            ):
                 logger.warning("circuit_breaker_open", failures=self.failure_count)
                 self.state = _State.OPEN
 
@@ -58,7 +61,11 @@ def circuit_breaker(failure_threshold: int, reset_timeout: float):
         @wraps(fn)
         async def wrapper(self, *args, **kwargs):
             if not hasattr(self, state_attr):
-                setattr(self, state_attr, _CircuitBreakerState(failure_threshold, reset_timeout))
+                setattr(
+                    self,
+                    state_attr,
+                    _CircuitBreakerState(failure_threshold, reset_timeout),
+                )
             state: _CircuitBreakerState = getattr(self, state_attr)
             await state.check()
             try:
@@ -70,4 +77,5 @@ def circuit_breaker(failure_threshold: int, reset_timeout: float):
                 raise
 
         return wrapper
+
     return decorator

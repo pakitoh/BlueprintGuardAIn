@@ -45,7 +45,9 @@ class GitHubDiffFetcher(DiffFetcher):
         try:
             url = f"{self._BASE}/repos/{repository}/commits/{sha}"
             async with httpx.AsyncClient() as client:
-                resp = await client.get(url, headers=self._headers, timeout=GITHUB_TIMEOUT)
+                resp = await client.get(
+                    url, headers=self._headers, timeout=GITHUB_TIMEOUT
+                )
                 resp.raise_for_status()
             logger.debug(
                 "github_diff_fetched",
@@ -62,5 +64,7 @@ class GitHubDiffFetcher(DiffFetcher):
                 for f in resp.json().get("files", [])
             ]
         except Exception as e:
-            logger.warning("diff_fetch_failed", repository=repository, sha=sha, error=str(e))
+            logger.warning(
+                "diff_fetch_failed", repository=repository, sha=sha, error=str(e)
+            )
             return []

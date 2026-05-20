@@ -2,6 +2,7 @@ import pytest
 from unittest.mock import MagicMock
 from litellm import ServiceUnavailableError
 
+from src.domain.entities import LLMResponse
 from src.infrastructure.llm.analyzer_config import LLM_TIMEOUT
 from src.infrastructure.llm.litellm_client import LiteLLMClient
 
@@ -22,10 +23,15 @@ async def test_call_passes_correct_model_and_prompt(mock_litellm):
 
 
 @pytest.mark.asyncio
-async def test_call_returns_response_content(mock_litellm):
+async def test_call_returns_llm_response(mock_litellm):
     mock_litellm.return_value.choices[0].message.content = "LLM finding"
+    mock_litellm.return_value.usage.prompt_tokens = 10
+    mock_litellm.return_value.usage.completion_tokens = 5
     result = await a_client().call("prompt")
-    assert result == "LLM finding"
+    assert isinstance(result, LLMResponse)
+    assert result.content == "LLM finding"
+    assert result.prompt_tokens == 10
+    assert result.completion_tokens == 5
 
 
 @pytest.mark.asyncio
@@ -44,5 +50,6 @@ async def test_call_retries_on_service_unavailable(mock_litellm):
         good_response,
     ]
     result = await a_client().call("any prompt")
-    assert result == "Finding after retry"
+    assert isinstance(result, LLMResponse)
+    assert result.content == "Finding after retry"
     assert mock_litellm.await_count == 2

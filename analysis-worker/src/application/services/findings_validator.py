@@ -18,6 +18,9 @@ class FindingsValidator:
         pairs = []
         for i, a in enumerate(findings):
             for b in findings[i + 1 :]:
-                if SequenceMatcher(None, a.lower(), b.lower()).ratio() >= _SIMILARITY_THRESHOLD:
+                if (
+                    SequenceMatcher(None, a.lower(), b.lower()).ratio()
+                    >= _SIMILARITY_THRESHOLD
+                ):
                     pairs.append((a, b))
         return pairs

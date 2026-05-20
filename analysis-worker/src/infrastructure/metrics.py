@@ -31,3 +31,27 @@ rag_similar_count = _meter.create_histogram(
     description="Number of similar past findings retrieved per analysis (0 = cold RAG)",
     unit="1",
 )
+
+llm_call_duration = _meter.create_histogram(
+    name="blueprintguardain_llm_call_duration_seconds",
+    description="Latency of a single LLM call attempt",
+    unit="s",
+)
+
+llm_prompt_tokens = _meter.create_counter(
+    name="blueprintguardain_llm_prompt_tokens_total",
+    description="Prompt tokens sent to the LLM",
+    unit="1",
+)
+
+llm_completion_tokens = _meter.create_counter(
+    name="blueprintguardain_llm_completion_tokens_total",
+    description="Completion tokens received from the LLM",
+    unit="1",
+)
+
+llm_cost_usd = _meter.create_counter(
+    name="blueprintguardain_llm_cost_usd_total",
+    description="Estimated USD cost of LLM calls",
+    unit="usd",
+)
