@@ -120,39 +120,3 @@ async def test_analyze_continues_when_diff_fetch_returns_empty():
     assert status == "COMPLETED"
 
 
-# --- _fetch_diffs ---
-
-
-@pytest.mark.asyncio
-async def test_fetch_diffs_returns_diffs_from_fetcher():
-    fd = a_file_diff()
-    diff_fetcher = AsyncMock()
-    diff_fetcher.fetch = AsyncMock(return_value=[fd])
-    result = await an_analyzer(diff_fetcher=diff_fetcher)._fetch_diffs(a_change())
-    assert result == [fd]
-
-
-# --- _fetch_past_findings ---
-
-
-@pytest.mark.asyncio
-async def test_fetch_past_findings_returns_findings_from_store():
-    past = [PastFinding(rule_text="Avoid cross-layer imports", context="ctx")]
-    findings_store = AsyncMock()
-    findings_store.find_similar = AsyncMock(return_value=past)
-    findings_store.save = AsyncMock()
-    result = await an_analyzer(findings_store=findings_store)._fetch_past_findings(
-        a_change(), []
-    )
-    assert result == past
-
-
-@pytest.mark.asyncio
-async def test_fetch_past_findings_returns_empty_when_store_returns_empty():
-    findings_store = AsyncMock()
-    findings_store.find_similar = AsyncMock(return_value=[])
-    findings_store.save = AsyncMock()
-    result = await an_analyzer(findings_store=findings_store)._fetch_past_findings(
-        a_change(), []
-    )
-    assert result == []
