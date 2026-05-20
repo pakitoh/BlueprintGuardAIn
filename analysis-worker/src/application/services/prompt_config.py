@@ -1,3 +1,5 @@
+PROMPT_VERSION = "0.1"
+
 PATCH_BUDGET = 12_000  # ~3k tokens; leaves room for RAG context and model response
 
 SYSTEM_ROLE = "You are an expert software architect reviewing a code change."

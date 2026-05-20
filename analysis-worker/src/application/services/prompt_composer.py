@@ -10,6 +10,7 @@ from src.application.services.prompt_config import (
     PAST_FINDINGS_HEADER,
     PATCH_BUDGET,
     PROMPT_TEMPLATE,
+    PROMPT_VERSION,
     SIZE_WARNING,
     SYSTEM_ROLE,
 )
@@ -40,6 +41,7 @@ class PromptComposer:
         logger.info(
             "prompt_built",
             repo=change.repository,
+            prompt_version=PROMPT_VERSION,
             files_included=len(included),
             files_dropped=dropped if dropped else None,
             prompt_chars=len(prompt),
