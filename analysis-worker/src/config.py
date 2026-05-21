@@ -1,4 +1,10 @@
+from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class LLMConfig(BaseModel):
+    model: str
+    api_key: str
 
 
 class Settings(BaseSettings):
@@ -16,10 +22,11 @@ class Settings(BaseSettings):
     results_topic: str = "analysis-results"
     consumer_group_id: str = "analysis-worker-group"
 
-    # LLM
-    llm_api_key: str = ""
-    llm_model: str = "gemini/gemini-2.0-flash"
-    embedding_model: str = "gemini/gemini-embedding-2"
+    # LLM — first entry is primary, rest are fallbacks
+    llm_configs: list[LLMConfig] = []
+
+    # Embeddings — first entry is primary, rest are fallbacks
+    embedding_configs: list[LLMConfig] = []
 
     # GitHub
     github_token: str = ""

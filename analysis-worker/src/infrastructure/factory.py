@@ -49,9 +49,13 @@ class InfrastructureFactory:
         return self._analyzer
 
     async def start(self) -> None:
+        if not settings.llm_configs:
+            raise RuntimeError("ANALYSIS_LLM_CONFIGS must have at least one entry")
+        if not settings.embedding_configs:
+            raise RuntimeError("ANALYSIS_EMBEDDING_CONFIGS must have at least one entry")
+
         self._embedder = LiteLLMEmbedder(
-            model=settings.embedding_model,
-            api_key=settings.llm_api_key,
+            configs=[(c.model, c.api_key) for c in settings.embedding_configs],
         )
         self._findings_store = PgVectorFindingsStore(
             dsn=settings.postgres_dsn,
@@ -77,8 +81,7 @@ class InfrastructureFactory:
             diff_fetcher=GitHubDiffFetcher(token=settings.github_token),
             prompt_composer=PromptComposer(),
             llm_client=LiteLLMClient(
-                model=settings.llm_model,
-                api_key=settings.llm_api_key,
+                configs=[(c.model, c.api_key) for c in settings.llm_configs],
             ),
             findings_store=self._findings_store,
             finding_parser=FindingParser(),

@@ -1,9 +1,8 @@
-import asyncio
 import pytest
 import struct
 import json
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 from src.domain.entities import AnalysisResult
 from src.infrastructure.kafka.analysis_result_repository import (
     KafkaAnalysisResultRepository,

@@ -6,22 +6,20 @@ from unittest.mock import AsyncMock, MagicMock
 def mock_litellm(mocker):
     mock_response = MagicMock()
     mock_response.choices[0].message.content = "Default mocked finding"
-    return mocker.patch(
-        "src.infrastructure.llm.litellm_client.acompletion",
-        new_callable=AsyncMock,
-        return_value=mock_response,
-    )
+    mock_router = MagicMock()
+    mock_router.acompletion = AsyncMock(return_value=mock_response)
+    mocker.patch("src.infrastructure.llm.litellm_client.Router", return_value=mock_router)
+    return mock_router.acompletion
 
 
 @pytest.fixture(autouse=True)
 def mock_litellm_embedding(mocker):
     mock_response = MagicMock()
     mock_response.data = [{"embedding": [0.1] * 768}]
-    return mocker.patch(
-        "src.infrastructure.llm.litellm_embedder.aembedding",
-        new_callable=AsyncMock,
-        return_value=mock_response,
-    )
+    mock_router = MagicMock()
+    mock_router.aembedding = AsyncMock(return_value=mock_response)
+    mocker.patch("src.infrastructure.llm.litellm_embedder.Router", return_value=mock_router)
+    return mock_router.aembedding
 
 
 @pytest.fixture(autouse=True)

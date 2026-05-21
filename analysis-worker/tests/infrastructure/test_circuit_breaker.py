@@ -2,7 +2,6 @@ import pytest
 
 from src.infrastructure.llm.circuit_breaker import (
     CircuitBreakerOpenError,
-    _CircuitBreakerState,
     _State,
     circuit_breaker,
 )

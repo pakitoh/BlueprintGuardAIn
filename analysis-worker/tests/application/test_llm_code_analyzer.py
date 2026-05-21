@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import AsyncMock
 
-from src.domain.entities import CodeChange, LLMResponse, PastFinding
+from src.domain.entities import CodeChange, LLMResponse
 from src.domain.ports.diff_fetcher import FileDiff
 from src.application.services.finding_parser import FindingParser
 from src.application.services.findings_validator import FindingsValidator

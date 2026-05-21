@@ -1,12 +1,11 @@
 import time
 import litellm
 import structlog
-from litellm import acompletion
+from litellm import Router
 from litellm import (
     APIConnectionError,
     BadGatewayError,
     InternalServerError,
-    RateLimitError,
     ServiceUnavailableError,
     Timeout,
 )
@@ -39,7 +38,6 @@ from src.infrastructure.metrics import (
 logger = structlog.get_logger()
 
 _LLM_RETRYABLE = (
-    RateLimitError,
     ServiceUnavailableError,
     APIConnectionError,
     InternalServerError,
@@ -49,9 +47,25 @@ _LLM_RETRYABLE = (
 
 
 class LiteLLMClient(LLMClient):
-    def __init__(self, model: str, api_key: str):
-        self._model = model
-        self._api_key = api_key
+    def __init__(self, configs: list[tuple[str, str]]):
+        self._model = configs[0][0]
+        self._router = LiteLLMClient._build_router(configs)
+
+    @staticmethod
+    def _build_router(configs: list[tuple[str, str]]) -> Router:
+        names = [f"config-{i}" for i in range(len(configs))]
+        model_list = [
+            {
+                "model_name": name,
+                "litellm_params": {"model": model, "api_key": api_key},
+            }
+            for name, (model, api_key) in zip(names, configs)
+        ]
+        return Router(
+            model_list=model_list,
+            fallbacks=[{names[0]: names[1:]}] if len(names) > 1 else None,
+            timeout=LLM_TIMEOUT,
+        )
 
     @circuit_breaker(
         failure_threshold=CB_FAILURE_THRESHOLD, reset_timeout=CB_RESET_TIMEOUT
@@ -69,11 +83,9 @@ class LiteLLMClient(LLMClient):
     )
     async def call(self, prompt: str) -> LLMResponse:
         start = time.perf_counter()
-        response = await acompletion(
-            model=self._model,
+        response = await self._router.acompletion(
+            model="config-0",
             messages=[{"role": "user", "content": prompt}],
-            api_key=self._api_key,
-            timeout=LLM_TIMEOUT,
         )
         latency = time.perf_counter() - start
         content = response.choices[0].message.content

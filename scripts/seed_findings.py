@@ -11,7 +11,10 @@ import asyncio
 import sys
 import os
 
+from dotenv import find_dotenv, load_dotenv
+
 sys.path.insert(0, os.getcwd())
+load_dotenv(find_dotenv())
 
 from src.config import settings
 from src.infrastructure.llm.litellm_embedder import LiteLLMEmbedder
@@ -79,8 +82,7 @@ SEED_ENTRIES = [
 
 async def main() -> None:
     embedder = LiteLLMEmbedder(
-        model=settings.embedding_model,
-        api_key=settings.llm_api_key,
+        configs=[(c.model, c.api_key) for c in settings.embedding_configs],
     )
 
     pool = await asyncpg.create_pool(settings.postgres_dsn)

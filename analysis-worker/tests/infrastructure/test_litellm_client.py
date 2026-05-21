@@ -3,22 +3,19 @@ from unittest.mock import MagicMock
 from litellm import ServiceUnavailableError
 
 from src.domain.entities import LLMResponse
-from src.infrastructure.llm.analyzer_config import LLM_TIMEOUT
 from src.infrastructure.llm.litellm_client import LiteLLMClient
 
 
 def a_client():
-    return LiteLLMClient(model="gemini/gemini-2.0-flash", api_key="test-key")
+    return LiteLLMClient(configs=[("gemini/gemini-2.0-flash", "test-key")])
 
 
 @pytest.mark.asyncio
 async def test_call_passes_correct_model_and_prompt(mock_litellm):
     await a_client().call("my prompt")
     mock_litellm.assert_awaited_once_with(
-        model="gemini/gemini-2.0-flash",
+        model="config-0",
         messages=[{"role": "user", "content": "my prompt"}],
-        api_key="test-key",
-        timeout=LLM_TIMEOUT,
     )
 
 

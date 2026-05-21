@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 from src.domain.entities import CodeChange
 from src.infrastructure.pgvector.pgvector_findings_store import (
     PgVectorFindingsStore,
