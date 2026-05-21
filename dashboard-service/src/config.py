@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     consumer_group_id: str = "dashboard-service"
     schema_registry_url: str = "http://localhost:8081"
     github_token: str = ""
+    postgres_url: str = "postgresql://postgres:postgres@localhost:5432/dashboard_db"
 
 
 settings = Settings()

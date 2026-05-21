@@ -9,10 +9,10 @@ from src.interface.api.router import router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    app.state.store = {}
     factory = InfrastructureFactory()
-    await factory.start(app.state.store)
     app.state.factory = factory
+    await factory.start()
+    app.state.repo = factory.repo
     try:
         yield
     finally:

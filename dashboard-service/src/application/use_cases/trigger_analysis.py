@@ -4,27 +4,32 @@ import structlog
 from datetime import datetime
 
 from src.domain.entities import AnalysisRecord
+from src.domain.ports.analysis_repository import AnalysisRepository
 from src.infrastructure.github.commit_picker import pick_random_commit
 
 logger = structlog.get_logger()
 
 
 async def trigger_analysis(
-    store: dict[str, AnalysisRecord],
+    repo: AnalysisRepository,
     ingestion_url: str,
     github_token: str,
 ) -> AnalysisRecord:
-    repo, sha, message = await pick_random_commit(github_token)
+    repository, sha, message = await pick_random_commit(github_token)
+    await _send_webhook(repository, sha, message, ingestion_url)
+    record = await _create_pending_record(repo, repository, sha)
+    return record
 
+
+async def _send_webhook(repository: str, sha: str, message: str, ingestion_url: str) -> None:
     payload = {
         "ref": "refs/heads/main",
         "after": sha,
-        "repository": {"full_name": repo, "html_url": f"https://github.com/{repo}"},
+        "repository": {"full_name": repository, "html_url": f"https://github.com/{repository}"},
         "commits": [
             {"id": sha, "message": message, "added": [], "modified": [], "removed": []}
         ],
     }
-
     async with httpx.AsyncClient() as client:
         resp = await client.post(
             ingestion_url,
@@ -34,13 +39,15 @@ async def trigger_analysis(
         )
         resp.raise_for_status()
 
+
+async def _create_pending_record(repo: AnalysisRepository, repository: str, sha: str) -> AnalysisRecord:
     record = AnalysisRecord(
         id=str(uuid.uuid4()),
-        repository=repo,
+        repository=repository,
         sha=sha,
         status="PENDING",
         created_at=datetime.utcnow(),
     )
-    store[record.id] = record
-    logger.info("analysis_triggered", id=record.id, repo=repo, sha=sha[:7])
+    await repo.save(record)
+    logger.info("analysis_triggered", id=record.id, repo=repository, sha=sha[:7])
     return record

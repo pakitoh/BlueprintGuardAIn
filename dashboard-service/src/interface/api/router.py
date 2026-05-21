@@ -40,7 +40,7 @@ async def health():
 async def create_analysis(request: Request):
     try:
         return await trigger_analysis(
-            store=request.app.state.store,
+            repo=request.app.state.repo,
             ingestion_url=settings.ingestion_url,
             github_token=settings.github_token,
         )
@@ -51,16 +51,12 @@ async def create_analysis(request: Request):
 
 @router.get("/api/analyses", response_model=list[AnalysisRecord])
 async def list_analyses(request: Request):
-    return sorted(
-        request.app.state.store.values(),
-        key=lambda r: r.created_at,
-        reverse=True,
-    )
+    return await request.app.state.repo.list_all()
 
 
 @router.get("/api/analyses/{id}", response_model=AnalysisRecord)
 async def get_analysis(id: str, request: Request):
-    record = request.app.state.store.get(id)
+    record = await request.app.state.repo.get(id)
     if not record:
         raise HTTPException(status_code=404, detail="Not found")
     return record
@@ -68,7 +64,7 @@ async def get_analysis(id: str, request: Request):
 
 @router.get("/api/analyses/{id}/diff", response_class=PlainTextResponse)
 async def get_analysis_diff(id: str, request: Request):
-    record: AnalysisRecord | None = request.app.state.store.get(id)
+    record: AnalysisRecord | None = await request.app.state.repo.get(id)
     if not record:
         raise HTTPException(status_code=404, detail="Not found")
     try:

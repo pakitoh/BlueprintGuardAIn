@@ -8,6 +8,7 @@ from fastavro import schemaless_reader
 from schema_registry.client import SchemaRegistryClient
 
 from src.domain.entities import AnalysisRecord
+from src.domain.ports.analysis_repository import AnalysisRepository
 
 logger = structlog.get_logger()
 
@@ -28,7 +29,7 @@ class KafkaResultConsumer:
         self._schema_cache: dict = {}
         self._task = None
 
-    async def start(self, store: dict[str, AnalysisRecord]) -> None:
+    async def start(self, repo: AnalysisRepository) -> None:
         self._consumer = AIOKafkaConsumer(
             self._topic,
             bootstrap_servers=self._bootstrap_servers,
@@ -36,7 +37,7 @@ class KafkaResultConsumer:
             auto_offset_reset="latest",
         )
         await self._consumer.start()
-        self._task = asyncio.create_task(self._consume(store))
+        self._task = asyncio.create_task(self._consume(repo))
         logger.debug("result_consumer_started")
 
     async def stop(self) -> None:
@@ -52,30 +53,24 @@ class KafkaResultConsumer:
             self._schema_cache[schema_id] = schema.schema
         return schemaless_reader(io.BytesIO(payload[5:]), self._schema_cache[schema_id])
 
-    async def _consume(self, store: dict[str, AnalysisRecord]) -> None:
+    async def _consume(self, repo: AnalysisRepository) -> None:
         async for msg in self._consumer:
             try:
-                data = self._deserialize(msg.value)
-                record = next(
-                    (
-                        r
-                        for r in store.values()
-                        if r.repository == data["repository"] and r.sha == data["sha"]
-                    ),
-                    None,
-                )
-                if record:
-                    store[record.id] = record.model_copy(
-                        update={
-                            "status": data["status"],
-                            "findings": data.get("findings", []),
-                            "completed_at": datetime.utcnow(),
-                        }
-                    )
-                    logger.info(
-                        "analysis_completed",
-                        id=record.id,
-                        findings=len(data.get("findings", [])),
-                    )
+                await self._process_message(msg, repo)
             except Exception as e:
                 logger.error("result_consumption_failed", error=str(e))
+
+    async def _process_message(self, msg, repo: AnalysisRepository) -> None:
+        data = self._deserialize(msg.value)
+        record = await repo.get_by_repo_sha(data["repository"], data["sha"])
+        if record:
+            await self._apply_result(repo, record, data)
+
+    async def _apply_result(self, repo: AnalysisRepository, record: AnalysisRecord, data: dict) -> None:
+        updated = record.model_copy(update={
+            "status": data["status"],
+            "findings": data.get("findings", []),
+            "completed_at": datetime.utcnow(),
+        })
+        await repo.update(updated)
+        logger.info("analysis_completed", id=record.id, findings=len(data.get("findings", [])))

@@ -16,6 +16,7 @@ services:
       POSTGRES_PASSWORD: postgres
     volumes:
       - ./scripts/analysis-db-init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./scripts/dashboard-db-init.sql:/docker-entrypoint-initdb.d/dashboard-init.sql
       - ./data/postgres:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d guardain_db"]
