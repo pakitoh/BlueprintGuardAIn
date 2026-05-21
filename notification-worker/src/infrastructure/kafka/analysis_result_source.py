@@ -1,6 +1,7 @@
 import io
 import struct
 import structlog
+from pathlib import Path
 from typing import AsyncIterator
 from aiokafka import AIOKafkaConsumer
 from opentelemetry import context as otel_context
@@ -82,4 +83,5 @@ class KafkaAnalysisResultSource(AnalysisResultSource):
             except Exception as e:
                 logger.error("message_consumption_failed", error=str(e))
             finally:
+                Path("/tmp/heartbeat").touch()
                 otel_context.detach(token)

@@ -35,8 +35,8 @@ RUN apt-get update && \
   apt-get install -y --no-install-recommends ${BUILD_DEPENDENCIES}; \
   fi
 RUN --mount=type=cache,target=/root/.cache/uv \
-  --mount=type=bind,source=ingestion-service/uv.lock,target=uv.lock \
-  --mount=type=bind,source=ingestion-service/pyproject.toml,target=pyproject.toml \
+  --mount=type=bind,source=notification-worker/uv.lock,target=uv.lock \
+  --mount=type=bind,source=notification-worker/pyproject.toml,target=pyproject.toml \
   uv sync --frozen --no-install-project --no-dev
 
 ## Stage: dev dependencies
@@ -48,8 +48,8 @@ RUN apt-get update && \
   apt-get install -y --no-install-recommends ${DEV_BUILD_DEPENDENCIES}; \
   fi
 RUN --mount=type=cache,target=/root/.cache/uv \
-  --mount=type=bind,source=ingestion-service/uv.lock,target=uv.lock \
-  --mount=type=bind,source=ingestion-service/pyproject.toml,target=pyproject.toml \
+  --mount=type=bind,source=notification-worker/uv.lock,target=uv.lock \
+  --mount=type=bind,source=notification-worker/pyproject.toml,target=pyproject.toml \
   uv sync --frozen --no-install-project --dev
 
 ## Stage: app
@@ -58,14 +58,13 @@ FROM base AS app
 COPY --from=deps --chown="${USER}:${USER}" ${APP_PATH}/.venv ${APP_PATH}/.venv
 
 RUN mkdir -p src logs && chown "${USER}:${USER}" src logs
-COPY ingestion-service/uv.lock ingestion-service/pyproject.toml ${APP_PATH}/
-COPY ingestion-service/src ${APP_PATH}/src
-COPY schemas /schemas
+COPY notification-worker/uv.lock notification-worker/pyproject.toml ${APP_PATH}/
+COPY notification-worker/src ${APP_PATH}/src
 
 USER ${USER}
 
-HEALTHCHECK --interval=10s --timeout=5s --start-period=5s --retries=5 \
-  CMD curl -f http://localhost:8000/health || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+  CMD find /tmp/heartbeat -mmin -1 | grep -q heartbeat
 ENTRYPOINT ["uv", "run", "python", "-m", "src.main"]
 
 ## Stage: dev
@@ -75,7 +74,7 @@ COPY --from=app --chown="${USER}:${USER}" ${APP_PATH} ${APP_PATH}
 COPY --from=dev-deps --chown="${USER}:${USER}" ${APP_PATH}/.venv ${APP_PATH}/.venv
 
 RUN mkdir -p tests && chown app:app tests
-COPY ingestion-service/tests ${APP_PATH}/tests
+COPY notification-worker/tests ${APP_PATH}/tests
 
 USER ${USER}
 

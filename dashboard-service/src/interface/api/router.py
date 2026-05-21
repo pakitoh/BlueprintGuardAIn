@@ -1,6 +1,9 @@
 import structlog
+from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, PlainTextResponse
+
+STATIC_DIR = Path(__file__).parent.parent / "static"
 
 from src.application.use_cases.trigger_analysis import trigger_analysis
 from src.config import settings
@@ -13,22 +16,22 @@ router = APIRouter()
 
 @router.get("/")
 async def index():
-    return FileResponse("src/interface/static/index.html")
+    return FileResponse(STATIC_DIR / "index.html")
 
 
 @router.get("/static/style.css")
 async def stylesheet():
-    return FileResponse("src/interface/static/style.css", media_type="text/css")
+    return FileResponse(STATIC_DIR / "style.css", media_type="text/css")
 
 
 @router.get("/static/app.js")
 async def javascript():
-    return FileResponse("src/interface/static/app.js", media_type="application/javascript")
+    return FileResponse(STATIC_DIR / "app.js", media_type="application/javascript")
 
 
 @router.get("/static/logo.png")
 async def logo():
-    return FileResponse("src/interface/static/logo.png", media_type="image/png")
+    return FileResponse(STATIC_DIR / "logo.png", media_type="image/png")
 
 
 @router.get("/health")

@@ -4,6 +4,47 @@ networks:
 
 services:
 
+  # Application services — opt-in via: docker-compose --profile app up
+  ingestion-service:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: ingestion-service/Dockerfile
+      target: app
+    ports:
+      - "8000:8000"
+    networks:
+      - guardain-net
+
+  analysis-worker:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: analysis-worker/Dockerfile
+      target: app
+    networks:
+      - guardain-net
+
+  notification-worker:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: notification-worker/Dockerfile
+      target: app
+    networks:
+      - guardain-net
+
+  dashboard-service:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: dashboard-service/Dockerfile
+      target: app
+    ports:
+      - "8002:8002"
+    networks:
+      - guardain-net
+
   # Database with Vector Support
   postgres:
     image: ankane/pgvector:latest
