@@ -5,7 +5,7 @@ import structlog
 logger = structlog.get_logger()
 
 MIN_FILES = 3
-MAX_PICK_ATTEMPTS = 5
+MAX_PICK_ATTEMPTS = 10
 
 DEFAULT_REPOS = [
     # Python
@@ -111,8 +111,6 @@ async def pick_random_commit(token: str) -> tuple[str, str, str]:
                 logger.info("commit_picked", repo=repo, sha=sha[:7], files=len(files))
                 return repo, sha, message
 
-    commit = commits[0]
-    sha = commit["sha"]
-    message = commit["commit"]["message"].splitlines()[0]
-    logger.warning("commit_picked_fallback", repo=repo, sha=sha[:7])
-    return repo, sha, message
+    raise RuntimeError(
+        f"No commit with >= {MIN_FILES} files found in {repo} after {MAX_PICK_ATTEMPTS} attempts"
+    )
