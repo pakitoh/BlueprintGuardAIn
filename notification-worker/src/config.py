@@ -2,7 +2,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    app_name: str = "action-worker"
+    app_name: str = "notification-worker"
     log_level: str = "INFO"
 
     otel_exporter_otlp_endpoint: str = "http://localhost:4317"
@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     kafka_bootstrap_servers: str = "localhost:9094"
     schema_registry_url: str = "http://localhost:8081"
     results_topic: str = "analysis-results"
-    consumer_group_id: str = "action-worker-group"
+    consumer_group_id: str = "notification-worker-group"
 
     github_token: str = ""
     github_api_url: str = "https://api.github.com"
@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
-        env_prefix="ACTION_",
+        env_prefix="NOTIFICATION_",
         extra="ignore",
     )
 

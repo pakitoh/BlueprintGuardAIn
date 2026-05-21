@@ -1,5 +1,5 @@
 [project]
-name = "action-worker"
+name = "notification-worker"
 version = "0.1.0"
 description = "Consumes analysis results and triggers external actions"
 readme = "README.md"
