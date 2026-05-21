@@ -59,7 +59,7 @@ class AccessLogMiddleware(BaseHTTPMiddleware):
         return response
 
 
-def add_otel_trace_id(_, __, event_dict):
+def _add_otel_trace_id(_, __, event_dict):
     """Processor that adds the current OTEL trace_id and span_id to the log event."""
     span = trace.get_current_span()
     if not span.is_recording():
@@ -79,12 +79,12 @@ SHARED_PROCESSORS = [
     structlog.stdlib.add_logger_name,
     structlog.processors.TimeStamper(fmt="iso"),
     structlog.processors.StackInfoRenderer(),
-    add_otel_trace_id,
+    _add_otel_trace_id,
     structlog.processors.format_exc_info,
 ]
 
 
-def setup_logging(resource, app):
+def _setup_logging(resource, app):
     """Configures global logging with native OTEL bridge."""
 
     # Configure logging levels
@@ -155,7 +155,7 @@ uvicorn_log_config = {
 }
 
 
-def setup_tracing(resource):
+def _setup_tracing(resource):
     tracer_provider = TracerProvider(resource=resource)
     tracer_provider.add_span_processor(
         BatchSpanProcessor(
@@ -167,7 +167,7 @@ def setup_tracing(resource):
     trace.set_tracer_provider(tracer_provider)
 
 
-def setup_metrics(resource):
+def _setup_metrics(resource):
     reader = PeriodicExportingMetricReader(
         OTLPMetricExporter(endpoint=settings.otel_exporter_otlp_endpoint, insecure=True)
     )
@@ -176,15 +176,21 @@ def setup_metrics(resource):
     )
 
 
+def _setup_resource() -> Resource:
+    return Resource.create(
+        {
+            "service.name": settings.app_name,
+            "service.version": resolve_commit_sha(),
+        }
+    )
+
+
 def instrument_app(app):
     """Sets up network-level observability (Logs, Traces & Metrics)."""
-    resource = Resource.create({
-        "service.name": settings.app_name,
-        "service.version": resolve_commit_sha(),
-    })
-    setup_logging(resource, app)
-    setup_tracing(resource)
-    setup_metrics(resource)
+    resource = _setup_resource()
+    _setup_logging(resource, app)
+    _setup_tracing(resource)
+    _setup_metrics(resource)
     FastAPIInstrumentor.instrument_app(app)
     AIOKafkaInstrumentor().instrument()
     logger.debug("app_instrumentation_complete")

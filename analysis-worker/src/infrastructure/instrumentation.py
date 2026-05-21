@@ -40,14 +40,7 @@ def resolve_commit_sha() -> str:
     return "unknown"
 
 
-def setup_resource() -> Resource:
-    return Resource.create({
-        "service.name": settings.app_name,
-        "service.version": resolve_commit_sha(),
-    })
-
-
-def add_otel_trace_id(_, __, event_dict):
+def _add_otel_trace_id(_, __, event_dict):
     """Processor that adds the current OTEL trace_id and span_id to the log event."""
     span = trace.get_current_span()
     if not span.is_recording():
@@ -66,12 +59,12 @@ SHARED_PROCESSORS = [
     structlog.stdlib.add_logger_name,
     structlog.processors.TimeStamper(fmt="iso"),
     structlog.processors.StackInfoRenderer(),
-    add_otel_trace_id,
+    _add_otel_trace_id,
     structlog.processors.format_exc_info,
 ]
 
 
-def setup_logging(resource):
+def _setup_logging(resource):
     """Configures global logging with native OTEL bridge."""
 
     # Configure logging levels
@@ -127,7 +120,7 @@ def setup_logging(resource):
     logger.debug("logging_initialized", service_name=settings.app_name)
 
 
-def setup_tracing(resource):
+def _setup_tracing(resource):
     tracer_provider = TracerProvider(resource=resource)
     tracer_provider.add_span_processor(
         BatchSpanProcessor(
@@ -139,24 +132,13 @@ def setup_tracing(resource):
     trace.set_tracer_provider(tracer_provider)
 
 
-def setup_metrics(resource):
+def _setup_metrics(resource):
     reader = PeriodicExportingMetricReader(
         OTLPMetricExporter(endpoint=settings.otel_exporter_otlp_endpoint, insecure=True)
     )
     metrics.set_meter_provider(
         MeterProvider(resource=resource, metric_readers=[reader])
     )
-
-
-def instrument_app():
-    """Sets up network-level observability (Logs, Traces & Metrics)."""
-    resource = setup_resource()
-    setup_logging(resource)
-    setup_tracing(resource)
-    setup_metrics(resource)
-    AIOKafkaInstrumentor().instrument()
-    _setup_litellm_otel()
-    logger.debug("app_instrumentation_complete")
 
 
 def _setup_litellm_otel():
@@ -169,3 +151,58 @@ def _setup_litellm_otel():
     import litellm
 
     litellm.callbacks = ["otel"]
+
+
+def _setup_langfuse() -> None:
+    """Register a Langfuse span processor on the global TracerProvider.
+
+    No-op if credentials are not set. Langfuse's processor applies a default
+    filter that exports only LLM-related spans (gen_ai.* attributes), so our
+    Kafka/HTTP spans continue to flow only to the local OTEL collector.
+    """
+    if not settings.langfuse_public_key or not settings.langfuse_secret_key:
+        logger.info("langfuse_disabled", reason="credentials_not_set")
+        return
+
+    from langfuse import Langfuse
+
+    Langfuse(
+        public_key=settings.langfuse_public_key,
+        secret_key=settings.langfuse_secret_key,
+        host=settings.langfuse_host,
+        release=resolve_commit_sha(),
+    )
+    logger.info("langfuse_enabled", host=settings.langfuse_host)
+
+
+def _setup_resource() -> Resource:
+    return Resource.create(
+        {
+            "service.name": settings.app_name,
+            "service.version": resolve_commit_sha(),
+        }
+    )
+
+
+def instrument_app():
+    """Sets up network-level observability (Logs, Traces & Metrics)."""
+    resource = _setup_resource()
+    _setup_logging(resource)
+    _setup_tracing(resource)
+    _setup_metrics(resource)
+    AIOKafkaInstrumentor().instrument()
+    _setup_litellm_otel()
+    _setup_langfuse()
+    logger.debug("app_instrumentation_complete")
+
+
+def flush_langfuse() -> None:
+    """Flush pending Langfuse spans. Safe to call when Langfuse is disabled."""
+    if not settings.langfuse_public_key or not settings.langfuse_secret_key:
+        return
+    try:
+        from langfuse import get_client
+
+        get_client().flush()
+    except Exception as e:
+        logger.warning("langfuse_flush_failed", error=str(e))

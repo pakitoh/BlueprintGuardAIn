@@ -4,7 +4,11 @@ import structlog
 
 from src.interface.api.router import router
 from src.config import settings
-from src.infrastructure.instrumentation import instrument_app, uvicorn_log_config, resolve_commit_sha
+from src.infrastructure.instrumentation import (
+    instrument_app,
+    uvicorn_log_config,
+    resolve_commit_sha,
+)
 from src.infrastructure.factory import InfrastructureFactory
 
 

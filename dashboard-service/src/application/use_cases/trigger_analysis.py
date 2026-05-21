@@ -21,11 +21,16 @@ async def trigger_analysis(
     return record
 
 
-async def _send_webhook(repository: str, sha: str, message: str, ingestion_url: str) -> None:
+async def _send_webhook(
+    repository: str, sha: str, message: str, ingestion_url: str
+) -> None:
     payload = {
         "ref": "refs/heads/main",
         "after": sha,
-        "repository": {"full_name": repository, "html_url": f"https://github.com/{repository}"},
+        "repository": {
+            "full_name": repository,
+            "html_url": f"https://github.com/{repository}",
+        },
         "commits": [
             {"id": sha, "message": message, "added": [], "modified": [], "removed": []}
         ],
@@ -40,7 +45,9 @@ async def _send_webhook(repository: str, sha: str, message: str, ingestion_url: 
         resp.raise_for_status()
 
 
-async def _create_pending_record(repo: AnalysisRepository, repository: str, sha: str) -> AnalysisRecord:
+async def _create_pending_record(
+    repo: AnalysisRepository, repository: str, sha: str
+) -> AnalysisRecord:
     record = AnalysisRecord(
         id=str(uuid.uuid4()),
         repository=repository,

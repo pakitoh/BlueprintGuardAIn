@@ -1,4 +1,3 @@
-
 REPOSITORY = "user/project"
 SHA = "sha123abc"
 REF = "refs/heads/main"

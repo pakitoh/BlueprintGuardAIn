@@ -48,8 +48,10 @@ class PostgresAnalysisRepository(AnalysisRepository):
     async def get_by_repo_sha(self, repository: str, sha: str) -> AnalysisRecord | None:
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(
-                _FETCH_QUERY + "WHERE r.repository = $1 AND r.sha = $2 GROUP BY r.id LIMIT 1",
-                repository, sha,
+                _FETCH_QUERY
+                + "WHERE r.repository = $1 AND r.sha = $2 GROUP BY r.id LIMIT 1",
+                repository,
+                sha,
             )
         return _to_entity(row) if row else None
 
@@ -60,19 +62,31 @@ class PostgresAnalysisRepository(AnalysisRepository):
             )
         return [_to_entity(r) for r in rows]
 
-    async def _insert_record(self, conn: asyncpg.Connection, record: AnalysisRecord) -> None:
+    async def _insert_record(
+        self, conn: asyncpg.Connection, record: AnalysisRecord
+    ) -> None:
         await conn.execute(
             "INSERT INTO analysis_records (id, repository, sha, status, created_at) VALUES ($1,$2,$3,$4,$5)",
-            record.id, record.repository, record.sha, record.status, record.created_at,
+            record.id,
+            record.repository,
+            record.sha,
+            record.status,
+            record.created_at,
         )
 
-    async def _update_record_status(self, conn: asyncpg.Connection, record: AnalysisRecord) -> None:
+    async def _update_record_status(
+        self, conn: asyncpg.Connection, record: AnalysisRecord
+    ) -> None:
         await conn.execute(
             "UPDATE analysis_records SET status=$1, completed_at=$2 WHERE id=$3",
-            record.status, record.completed_at, record.id,
+            record.status,
+            record.completed_at,
+            record.id,
         )
 
-    async def _insert_findings(self, conn: asyncpg.Connection, record: AnalysisRecord) -> None:
+    async def _insert_findings(
+        self, conn: asyncpg.Connection, record: AnalysisRecord
+    ) -> None:
         if record.findings:
             await conn.executemany(
                 "INSERT INTO analysis_findings (analysis_id, position, content) VALUES ($1,$2,$3)",

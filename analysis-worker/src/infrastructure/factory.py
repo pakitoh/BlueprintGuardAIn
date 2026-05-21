@@ -6,6 +6,7 @@ from src.application.services.findings_validator import FindingsValidator
 from src.application.services.llm_code_analyzer import LLMCodeAnalyzer
 from src.application.services.prompt_composer import PromptComposer
 from src.infrastructure.github.github_diff_fetcher import GitHubDiffFetcher
+from src.infrastructure.instrumentation import flush_langfuse
 from src.infrastructure.kafka.analysis_result_repository import (
     KafkaAnalysisResultRepository,
 )
@@ -52,7 +53,9 @@ class InfrastructureFactory:
         if not settings.llm_configs:
             raise RuntimeError("ANALYSIS_LLM_CONFIGS must have at least one entry")
         if not settings.embedding_configs:
-            raise RuntimeError("ANALYSIS_EMBEDDING_CONFIGS must have at least one entry")
+            raise RuntimeError(
+                "ANALYSIS_EMBEDDING_CONFIGS must have at least one entry"
+            )
 
         self._embedder = LiteLLMEmbedder(
             configs=[(c.model, c.api_key) for c in settings.embedding_configs],
@@ -97,3 +100,4 @@ class InfrastructureFactory:
             await self._source.stop()
         if self._findings_store:
             await self._findings_store.stop()
+        flush_langfuse()

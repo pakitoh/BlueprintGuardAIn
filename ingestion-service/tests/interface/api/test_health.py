@@ -1,5 +1,3 @@
-
-
 def test_read_health(client):
     response = client.get("/health")
 

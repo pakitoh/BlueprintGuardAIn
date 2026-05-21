@@ -81,7 +81,9 @@ async def get_analysis_diff(id: str, request: Request):
     if not record:
         raise HTTPException(status_code=404, detail="Not found")
     try:
-        diff = await fetch_commit_diff(record.repository, record.sha, settings.github_token)
+        diff = await fetch_commit_diff(
+            record.repository, record.sha, settings.github_token
+        )
     except Exception as e:
         logger.error("diff_fetch_failed", id=id, error=str(e))
         raise HTTPException(status_code=502, detail="Failed to fetch diff from GitHub")

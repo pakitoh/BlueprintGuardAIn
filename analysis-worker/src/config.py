@@ -34,6 +34,11 @@ class Settings(BaseSettings):
     # PostgreSQL / pgvector
     postgres_dsn: str = "postgresql://postgres:postgres@localhost:5432/analysis_db"
 
+    # Langfuse (optional — tracing disabled if keys are blank)
+    langfuse_public_key: str = ""
+    langfuse_secret_key: str = ""
+    langfuse_host: str = "https://cloud.langfuse.com"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

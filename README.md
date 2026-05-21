@@ -71,6 +71,9 @@ Before running the stack, fill in the required variables in the root `.env` file
 | `DASHBOARD_GITHUB_TOKEN` | ✅ | GitHub token used by the dashboard |
 | `NOTIFICATION_GITHUB_TOKEN` | ☐ | GitHub token for posting PR comments |
 | `NOTIFICATION_SLACK_WEBHOOK_URL` | ☐ | Slack webhook for analysis notifications |
+| `ANALYSIS_LANGFUSE_PUBLIC_KEY` | ☐ | Langfuse public key — enables LLM tracing if set |
+| `ANALYSIS_LANGFUSE_SECRET_KEY` | ☐ | Langfuse secret key |
+| `ANALYSIS_LANGFUSE_HOST` | ☐ | Langfuse host (EU: `https://cloud.langfuse.com`, US: `https://us.cloud.langfuse.com`) |
 
 #### LLM and embedding config format
 
@@ -210,11 +213,16 @@ Trace context is propagated across Kafka boundaries using **W3C `traceparent` he
 | Traces | Tempo |
 | Metrics | Prometheus |
 | Logs | Loki (JSON, all libraries) |
+| LLM tracing | Langfuse Cloud (optional) |
 
 <p align="center">
     <img src="media/screenshot3.png" alt="Grafana" width="45%">
     <img src="media/screenshot2.png" alt="Tempo" width="45%">
 </p>
+
+### LLM observability with Langfuse
+
+Set `ANALYSIS_LANGFUSE_PUBLIC_KEY` and `ANALYSIS_LANGFUSE_SECRET_KEY` in `.env` to capture every LLM call (model, tokens, cost, prompt, completion) in [Langfuse Cloud](https://cloud.langfuse.com). The Langfuse SDK attaches a span processor to the same global `TracerProvider` used for Tempo, and its built-in filter only exports LLM-tagged spans — so Tempo continues to receive the full trace tree while Langfuse only sees the generations. Leave the keys blank to disable; nothing else changes.
 
 
 ---

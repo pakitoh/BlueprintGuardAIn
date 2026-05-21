@@ -17,6 +17,7 @@ dependencies = [
     "python-schema-registry-client>=2.6.1",
     "fastavro>=1.12.2",
     "litellm>=1.85.0",
+    "langfuse>=3.0.0",
     "asyncpg>=0.30.0",
     "httpx>=0.28.0",
     "tenacity>=9.0.0",

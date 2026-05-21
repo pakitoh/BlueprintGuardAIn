@@ -66,11 +66,17 @@ class KafkaResultConsumer:
         if record:
             await self._apply_result(repo, record, data)
 
-    async def _apply_result(self, repo: AnalysisRepository, record: AnalysisRecord, data: dict) -> None:
-        updated = record.model_copy(update={
-            "status": data["status"],
-            "findings": data.get("findings", []),
-            "completed_at": datetime.utcnow(),
-        })
+    async def _apply_result(
+        self, repo: AnalysisRepository, record: AnalysisRecord, data: dict
+    ) -> None:
+        updated = record.model_copy(
+            update={
+                "status": data["status"],
+                "findings": data.get("findings", []),
+                "completed_at": datetime.utcnow(),
+            }
+        )
         await repo.update(updated)
-        logger.info("analysis_completed", id=record.id, findings=len(data.get("findings", [])))
+        logger.info(
+            "analysis_completed", id=record.id, findings=len(data.get("findings", []))
+        )
