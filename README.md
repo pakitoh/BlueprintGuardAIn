@@ -10,7 +10,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.12+-blue" alt="Python 3.12+">
   <img src="https://img.shields.io/badge/docker-compose-blue" alt="Docker Compose">
-  <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License">
+  <img src="https://img.shields.io/badge/license-GPLv3.0-green" alt="GPLv3 License">
 </p>
 
 **Blueprint GuardAIn** is an AI-driven peer reviewer embedded in your CI/CD pipeline — it receives GitHub webhooks, analyses code changes with LLMs, and posts architectural feedback to PRs and Slack without blocking the webhook response.
@@ -57,7 +57,7 @@ PR reviews slow down delivery. Reviewers miss architectural drift. Feedback arri
 
 ## 🚀 Getting Started
 
-**Prerequisites:** Python 3.12+, Docker & Docker Compose, `uv`, LLM API key.
+**Prerequisites:** Python 3.12+, `uv`, Docker & Docker Compose, LLM API key, GitHub token.
 
 ### Configuration
 
