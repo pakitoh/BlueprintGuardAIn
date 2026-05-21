@@ -20,8 +20,8 @@ async def run_worker():
     instrument_app()
     version = resolve_commit_sha()
     factory = InfrastructureFactory()
-    await factory.start()
     try:
+        await factory.start()
         logger.info("notification_worker_ready", version=version)
         actions = [LogAction()]
 
@@ -49,6 +49,9 @@ async def run_worker():
             actions=actions,
         )
         await use_case.run()
+    except Exception:
+        logger.exception("notification_worker_failed")
+        raise
     finally:
         await factory.stop()
 

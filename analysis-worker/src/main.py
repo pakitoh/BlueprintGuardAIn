@@ -15,9 +15,8 @@ async def run_worker():
     version = resolve_commit_sha()
 
     factory = InfrastructureFactory()
-    await factory.start()
-
     try:
+        await factory.start()
         use_case = InstrumentedAnalyzeCodeChangeUseCase(
             source=factory.code_change_source,
             sink=factory.analysis_result_repository,
@@ -25,6 +24,9 @@ async def run_worker():
         )
         logger.info("analysis_worker_ready", version=version)
         await use_case.run()
+    except Exception:
+        logger.exception("analysis_worker_failed")
+        raise
     finally:
         logger.info("stopping_analysis_worker")
         await factory.stop()
