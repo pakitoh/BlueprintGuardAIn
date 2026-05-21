@@ -3,12 +3,12 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, PlainTextResponse
 
-STATIC_DIR = Path(__file__).parent.parent / "static"
-
 from src.application.use_cases.trigger_analysis import trigger_analysis
 from src.config import settings
 from src.domain.entities import AnalysisRecord
 from src.infrastructure.github.commit_picker import fetch_commit_diff
+
+STATIC_DIR = Path(__file__).parent.parent / "static"
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -31,6 +31,11 @@ async def javascript():
 
 @router.get("/static/logo.png")
 async def logo():
+    return FileResponse(STATIC_DIR / "logo.png", media_type="image/png")
+
+
+@router.get("/favicon.ico", include_in_schema=False)
+async def favicon():
     return FileResponse(STATIC_DIR / "logo.png", media_type="image/png")
 
 
