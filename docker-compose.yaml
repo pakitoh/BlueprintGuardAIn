@@ -4,7 +4,7 @@ networks:
 
 services:
 
-  # Application services — opt-in via: docker-compose --profile app up
+  # Application services — opt-in via: docker compose --profile app up
   ingestion-service:
     profiles: ["app"]
     build:
@@ -13,6 +13,14 @@ services:
       target: app
     ports:
       - "8000:8000"
+    environment:
+      INGESTION_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      INGESTION_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      INGESTION_OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+    depends_on:
+      - kafka
+      - schema-registry
+      - otel-collector
     networks:
       - guardain-net
 
@@ -22,6 +30,18 @@ services:
       context: .
       dockerfile: analysis-worker/Dockerfile
       target: app
+    environment:
+      ANALYSIS_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      ANALYSIS_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      ANALYSIS_OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      ANALYSIS_POSTGRES_DSN: postgresql://postgres:postgres@postgres:5432/analysis_db
+      ANALYSIS_LLM_API_KEY: ${ANALYSIS_LLM_API_KEY}
+      ANALYSIS_GITHUB_TOKEN: ${ANALYSIS_GITHUB_TOKEN}
+    depends_on:
+      - kafka
+      - schema-registry
+      - postgres
+      - otel-collector
     networks:
       - guardain-net
 
@@ -31,6 +51,16 @@ services:
       context: .
       dockerfile: notification-worker/Dockerfile
       target: app
+    environment:
+      NOTIFICATION_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      NOTIFICATION_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      NOTIFICATION_OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      NOTIFICATION_GITHUB_TOKEN: ${NOTIFICATION_GITHUB_TOKEN}
+      NOTIFICATION_SLACK_WEBHOOK_URL: ${NOTIFICATION_SLACK_WEBHOOK_URL}
+    depends_on:
+      - kafka
+      - schema-registry
+      - otel-collector
     networks:
       - guardain-net
 
@@ -42,6 +72,19 @@ services:
       target: app
     ports:
       - "8002:8002"
+    environment:
+      DASHBOARD_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      DASHBOARD_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      DASHBOARD_OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      DASHBOARD_POSTGRES_URL: postgresql://postgres:postgres@postgres:5432/dashboard_db
+      DASHBOARD_INGESTION_URL: http://ingestion-service:8000/webhooks/github
+      DASHBOARD_GITHUB_TOKEN: ${DASHBOARD_GITHUB_TOKEN}
+    depends_on:
+      - kafka
+      - schema-registry
+      - postgres
+      - ingestion-service
+      - otel-collector
     networks:
       - guardain-net
 
@@ -123,6 +166,8 @@ services:
       - ./data/grafana:/var/lib/grafana
     environment:
       - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_SECURITY_SECRET_KEY=super-secure-key

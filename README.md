@@ -89,27 +89,34 @@ Trace context is propagated across Kafka boundaries using **W3C `traceparent` he
 
 ## 🚀 Getting Started
 
-**Prerequisites:** Python 3.12+, Docker & Docker Compose, LLM API key.
+**Prerequisites:** Python 3.12+, Docker & Docker Compose, `uv`, LLM API key.
+
+### Run with Docker (recommended)
 
 ```bash
-# 1. Start infrastructure (Kafka, PostgreSQL/pgvector, OTEL stack)
-docker-compose up -d
-
-# 2. Install dependencies for each service
-cd ingestion-service     && uv sync
-cd ../analysis-worker    && uv sync
-cd ../notification-worker && uv sync
-cd ../dashboard-service  && uv sync
-
-# 3. Seed the knowledge base (optional but recommended)
-cd analysis-worker && uv run python scripts/seed_findings.py
-
-# 4. Run the four services (one terminal each)
-cd ingestion-service  && uv run python -m src.main
-cd analysis-worker    && uv run python -m src.main
-cd notification-worker && uv run python -m src.main
-cd dashboard-service  && uv run python -m src.main
+make start
 ```
+
+That's it. Opens the dashboard at http://localhost:8002.
+
+### Run locally (for development)
+
+```bash
+make dev
+```
+
+Then start each service in its own terminal:
+
+```bash
+cd ingestion-service   && uv run python -m src.main
+cd analysis-worker     && uv run python -m src.main
+cd notification-worker && uv run python -m src.main
+cd dashboard-service   && uv run python -m src.main
+```
+
+### Individual steps
+
+Run `make help` to see all available targets. Useful when you need to rebuild a single image, restart infrastructure, or re-seed the knowledge base independently.
 
 ### Simulate a webhook
 

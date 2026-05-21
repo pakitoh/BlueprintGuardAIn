@@ -11,7 +11,7 @@ import asyncio
 import sys
 import os
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+sys.path.insert(0, os.getcwd())
 
 from src.config import settings
 from src.infrastructure.llm.litellm_embedder import LiteLLMEmbedder
