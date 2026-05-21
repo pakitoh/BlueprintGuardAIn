@@ -1,6 +1,6 @@
 <p align="center">
     <a href="https://github.com/pakitoh/blueprintGuarAIn">
-        <img src="logo.png" alt="Logo" width="200">
+        <img src="media/logo.png" alt="Logo" width="200">
     </a>
 </p>
 <p align="center" style="color:rgb(40,82,100);font-size:44px;font-weight:bold;">
@@ -11,11 +11,13 @@
 
 **Blueprint GuardAIn** is an autonomous codebase intelligence platform that acts as an AI-driven peer reviewer inside your CI/CD pipeline. It receives GitHub webhooks, analyzes code changes using LLMs, and posts architectural feedback back to PRs and Slack — all without blocking the webhook response.
 
+<img src="media/screenshot1.png" alt="screenshot1">
+
 ---
 
 ## 🤖 AI Design
 
-### LLM-Powered Architecture
+### LLM-Powered
 
 The core of the platform is an LLM analysis loop built on [LiteLLM](https://github.com/BerriAI/litellm), which provides a unified interface to multiple LLM providers.
 
@@ -50,17 +52,26 @@ The knowledge base can be pre-populated with curated architectural rules via `sc
 GitHub Webhook
      │
      ▼
-┌──────────────────┐    Kafka (Avro)    ┌─────────────────────┐    Kafka (Avro)    ┌────────────────┐
-│ ingestion-service│ ──────────────────▶│  analysis-worker    │ ──────────────────▶│ action-worker  │
-│  FastAPI gateway │                    │  LLM + RAG + pgvec  │                    │ GitHub / Slack │
-└──────────────────┘                    └─────────────────────┘                    └────────────────┘
+┌──────────────────┐    Kafka (Avro)    ┌─────────────────────┐    Kafka (Avro)    ┌──────────────────────┐
+│ ingestion-service│ ──────────────────▶│  analysis-worker    │ ──────────────────▶│ notification-worker  │
+│  FastAPI gateway │                    │  LLM + RAG + pgvec  │          |         │   GitHub / Slack     │
+└──────────────────┘                    └─────────────────────┘          |         └──────────────────────┘
+                                                                         │
+                                                                         │
+                                                                         ▼
+                                                               ┌─────────────────────┐
+                                                               │  dashboard-service  │
+                                                               │  FastAPI + Web UI   │
+                                                               │  PostgreSQL         │
+                                                               └─────────────────────┘
 ```
 
-Three independent Python microservices communicate via **Kafka** using Avro-serialized messages:
+Four independent Python microservices communicate via **Kafka** using Avro-serialized messages:
 
 - **`ingestion-service/`** — validates GitHub webhook signatures, produces `CodeChange` events.
 - **`analysis-worker/`** — consumes events, runs LLM+RAG analysis, publishes `AnalysisResult` events.
-- **`action-worker/`** — consumes results, posts comments to GitHub PRs and Slack.
+- **`notification-worker/`** — consumes results, posts comments to GitHub PRs and Slack.
+- **`dashboard-service/`** — consumes results, persists them to PostgreSQL, and serves a web UI to trigger analyses and inspect findings.
 
 ---
 
@@ -85,17 +96,19 @@ Trace context is propagated across Kafka boundaries using **W3C `traceparent` he
 docker-compose up -d
 
 # 2. Install dependencies for each service
-cd ingestion-service && uv sync
-cd ../analysis-worker  && uv sync
-cd ../action-worker    && uv sync
+cd ingestion-service     && uv sync
+cd ../analysis-worker    && uv sync
+cd ../notification-worker && uv sync
+cd ../dashboard-service  && uv sync
 
 # 3. Seed the knowledge base (optional but recommended)
 cd analysis-worker && uv run python scripts/seed_findings.py
 
-# 4. Run the three services (one terminal each)
-cd ingestion-service && uv run python -m src.main
-cd analysis-worker   && uv run python -m src.main
-cd action-worker     && uv run python -m src.main
+# 4. Run the four services (one terminal each)
+cd ingestion-service  && uv run python -m src.main
+cd analysis-worker    && uv run python -m src.main
+cd notification-worker && uv run python -m src.main
+cd dashboard-service  && uv run python -m src.main
 ```
 
 ### Simulate a webhook
@@ -122,4 +135,4 @@ cd analysis-worker && uv run python -m pytest
 | Topic | Producer | Consumer |
 | :--- | :--- | :--- |
 | `webhook-events` | ingestion-service | analysis-worker |
-| `analysis-results` | analysis-worker | action-worker |
+| `analysis-results` | analysis-worker | notification-worker, dashboard-service |
