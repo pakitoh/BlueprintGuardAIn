@@ -1,3 +1,7 @@
+CREATE DATABASE analysis_db;
+
+\c analysis_db
+
 CREATE EXTENSION IF NOT EXISTS vector;
 
 CREATE TABLE IF NOT EXISTS past_findings (

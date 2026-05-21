@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     github_token: str = ""
 
     # PostgreSQL / pgvector
-    postgres_dsn: str = "postgresql://postgres:postgres@localhost:5432/guardain_db"
+    postgres_dsn: str = "postgresql://postgres:postgres@localhost:5432/analysis_db"
 
     model_config = SettingsConfigDict(
         env_file=".env",
