@@ -44,6 +44,11 @@ async def health():
     return {"status": "ok"}
 
 
+@router.get("/version")
+async def version(request: Request):
+    return {"service": "dashboard-service", "version": request.app.state.version}
+
+
 @router.post("/api/analyses", response_model=AnalysisRecord, status_code=202)
 async def create_analysis(request: Request):
     try:

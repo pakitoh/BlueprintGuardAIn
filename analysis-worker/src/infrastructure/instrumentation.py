@@ -1,4 +1,6 @@
 import logging
+import os
+import subprocess
 import structlog
 import sys
 from opentelemetry import trace, metrics
@@ -21,8 +23,28 @@ from src.config import settings
 logger = structlog.get_logger()
 
 
-def setup_resource():
-    return Resource.create({"service.name": settings.app_name})
+def resolve_commit_sha() -> str:
+    if sha := os.environ.get("GIT_SHA"):
+        return sha
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except Exception:
+        pass
+    return "unknown"
+
+
+def setup_resource() -> Resource:
+    return Resource.create({
+        "service.name": settings.app_name,
+        "service.version": resolve_commit_sha(),
+    })
 
 
 def add_otel_trace_id(_, __, event_dict):

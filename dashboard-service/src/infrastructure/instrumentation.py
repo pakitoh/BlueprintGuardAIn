@@ -1,4 +1,6 @@
 import logging
+import os
+import subprocess
 import structlog
 import sys
 import time
@@ -22,6 +24,23 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from src.config import settings
 
 logger = structlog.get_logger()
+
+
+def resolve_commit_sha() -> str:
+    if sha := os.environ.get("GIT_SHA"):
+        return sha
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except Exception:
+        pass
+    return "unknown"
 
 
 class AccessLogMiddleware(BaseHTTPMiddleware):
@@ -128,7 +147,10 @@ uvicorn_log_config = {
 
 
 def instrument_app(app) -> None:
-    resource = Resource.create({"service.name": settings.app_name})
+    resource = Resource.create({
+        "service.name": settings.app_name,
+        "service.version": resolve_commit_sha(),
+    })
     setup_logging(resource, app)
     setup_tracing(resource)
     setup_metrics(resource)

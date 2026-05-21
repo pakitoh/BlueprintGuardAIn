@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from src.interface.api.router import router, get_process_webhook_use_case
@@ -59,6 +59,7 @@ def test_app(mock_use_case):
     # Create a test app without the lifespan to avoid Kafka and OTLP connections
     app = FastAPI()
     app.include_router(router)
+    app.state.version = "test-sha"
     # Setup the app to use our mock use case
     app.dependency_overrides[get_process_webhook_use_case] = lambda: mock_use_case
     yield app

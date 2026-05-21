@@ -1,4 +1,3 @@
-import pytest
 
 REPOSITORY = "user/project"
 SHA = "sha123abc"

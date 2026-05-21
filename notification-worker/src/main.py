@@ -1,7 +1,9 @@
 import asyncio
+import structlog
+
 from src.config import settings
 from src.infrastructure.factory import InfrastructureFactory
-from src.infrastructure.instrumentation import instrument_app
+from src.infrastructure.instrumentation import instrument_app, resolve_commit_sha
 from src.infrastructure.actions.conditional_action import ConditionalAction
 from src.infrastructure.actions.github_action import GitHubAction
 from src.infrastructure.actions.log_action import LogAction
@@ -11,11 +13,16 @@ from src.infrastructure.tracing.instrumented_process_analysis_result import (
 )
 
 
+logger = structlog.get_logger()
+
+
 async def run_worker():
     instrument_app()
+    version = resolve_commit_sha()
     factory = InfrastructureFactory()
     await factory.start()
     try:
+        logger.info("notification_worker_ready", version=version)
         actions = [LogAction()]
 
         if settings.github_token:

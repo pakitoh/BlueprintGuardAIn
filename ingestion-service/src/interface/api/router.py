@@ -25,6 +25,11 @@ async def health():
     return {"status": "ok"}
 
 
+@router.get("/version")
+async def version(request: Request):
+    return {"service": "ingestion-service", "version": request.app.state.version}
+
+
 @router.post("/webhooks/github", status_code=202)
 async def github_webhook(
     event: GithubWebhookDTO,
