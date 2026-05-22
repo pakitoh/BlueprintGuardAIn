@@ -30,6 +30,16 @@ async def javascript():
     return FileResponse(STATIC_DIR / "app.js", media_type="application/javascript")
 
 
+@router.get("/static/api.js")
+async def javascript_api():
+    return FileResponse(STATIC_DIR / "api.js", media_type="application/javascript")
+
+
+@router.get("/static/render.js")
+async def javascript_render():
+    return FileResponse(STATIC_DIR / "render.js", media_type="application/javascript")
+
+
 @router.get("/static/logo.png")
 async def logo():
     return FileResponse(STATIC_DIR / "logo.png", media_type="image/png")
