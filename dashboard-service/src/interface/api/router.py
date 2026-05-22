@@ -4,9 +4,10 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, PlainTextResponse
 
 from src.application.use_cases.trigger_analysis import trigger_analysis
+from src.application.use_cases.trigger_replay import trigger_replay
 from src.config import settings
 from src.domain.entities import AnalysisRecord
-from src.infrastructure.github.commit_picker import fetch_commit_diff
+from src.infrastructure.github.commit_picker import CURATED_REPOS, fetch_commit_diff
 
 STATIC_DIR = Path(__file__).parent.parent / "static"
 
@@ -59,6 +60,33 @@ async def create_analysis(request: Request):
         )
     except Exception as e:
         logger.error("trigger_failed", error=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/curated-repos")
+async def list_curated_repos():
+    return [{"repo": r, "language": lang} for r, lang in CURATED_REPOS]
+
+
+@router.post("/api/replay", response_model=AnalysisRecord, status_code=202)
+async def create_replay(request: Request):
+    body = await request.json()
+    repo_name = (body.get("repository") or "").strip()
+    if not repo_name:
+        raise HTTPException(status_code=422, detail="repository is required")
+    try:
+        return await trigger_replay(
+            repo_name=repo_name,
+            repo=request.app.state.repo,
+            ingestion_url=settings.ingestion_url,
+            github_token=settings.github_token,
+            progress_repo=request.app.state.replay_progress_repo,
+            page_cache=request.app.state.replay_page_cache,
+        )
+    except RuntimeError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except Exception as e:
+        logger.error("replay_failed", error=str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 

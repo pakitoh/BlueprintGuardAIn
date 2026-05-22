@@ -118,6 +118,19 @@ function poll(r) {
   }, 2000);
 }
 
+// --- tabs ---
+
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => { c.style.display = 'none'; });
+    tab.classList.add('active');
+    document.getElementById('tab-' + tab.dataset.tab).style.display = 'flex';
+  });
+});
+
+// --- random ---
+
 document.getElementById('trigger').addEventListener('click', async () => {
   const btn = document.getElementById('trigger');
   btn.disabled = true;
@@ -134,5 +147,68 @@ document.getElementById('trigger').addEventListener('click', async () => {
   }
 });
 
+// --- historical ---
+
+async function loadCuratedRepos() {
+  const repos = await api('GET', '/curated-repos');
+  const select = document.getElementById('repo-select');
+  const byLang = {};
+  repos.forEach(({ repo, language }) => {
+    if (!byLang[language]) byLang[language] = [];
+    byLang[language].push(repo);
+  });
+  Object.entries(byLang).forEach(([lang, repoList]) => {
+    const group = document.createElement('optgroup');
+    group.label = lang;
+    repoList.forEach(repo => {
+      const opt = document.createElement('option');
+      opt.value = repo;
+      opt.textContent = repo;
+      group.appendChild(opt);
+    });
+    select.appendChild(group);
+  });
+}
+
+document.getElementById('repo-select').addEventListener('change', () => {
+  if (document.getElementById('repo-select').value) {
+    document.getElementById('repo-custom').value = '';
+  }
+});
+
+document.getElementById('repo-custom').addEventListener('input', () => {
+  if (document.getElementById('repo-custom').value.trim()) {
+    document.getElementById('repo-select').value = '';
+  }
+});
+
+document.getElementById('trigger-replay').addEventListener('click', async () => {
+  const btn = document.getElementById('trigger-replay');
+  const msg = document.getElementById('replay-msg');
+  const repo = document.getElementById('repo-custom').value.trim()
+    || document.getElementById('repo-select').value;
+  if (!repo) { alert('Select or enter a repo first.'); return; }
+
+  btn.disabled = true;
+  btn.textContent = '…';
+  msg.style.display = 'none';
+  try {
+    const r = await api('POST', '/replay', { repository: repo });
+    await loadList();
+    await selectRecord(r.id);
+  } catch (e) {
+    if (e.message.includes('409') || e.message.toLowerCase().includes('replayed')) {
+      msg.textContent = `All commits for ${repo} have been replayed.`;
+      msg.style.display = 'block';
+    } else {
+      alert('Failed: ' + e.message);
+    }
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '▶ Next commit';
+  }
+});
+
+loadCuratedRepos();
 loadList();
 setInterval(loadList, 5000);

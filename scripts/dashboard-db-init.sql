@@ -21,3 +21,10 @@ CREATE TABLE IF NOT EXISTS analysis_findings (
 CREATE INDEX IF NOT EXISTS idx_ar_created_at  ON analysis_records (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_ar_repo_sha    ON analysis_records (repository, sha);
 CREATE INDEX IF NOT EXISTS idx_af_analysis_id ON analysis_findings (analysis_id);
+
+CREATE TABLE IF NOT EXISTS replay_progress (
+    repository   TEXT PRIMARY KEY,
+    last_page    INTEGER NOT NULL,
+    current_page INTEGER NOT NULL,
+    page_index   INTEGER NOT NULL
+);

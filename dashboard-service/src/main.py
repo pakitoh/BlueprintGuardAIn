@@ -21,6 +21,8 @@ async def lifespan(app: FastAPI):
     app.state.factory = factory
     await factory.start()
     app.state.repo = factory.repo
+    app.state.replay_progress_repo = factory.replay_progress_repo
+    app.state.replay_page_cache = {}
     try:
         yield
     finally:

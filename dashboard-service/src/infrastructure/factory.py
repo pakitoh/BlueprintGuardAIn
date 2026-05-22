@@ -2,18 +2,24 @@ from schema_registry.client import SchemaRegistryClient
 
 from src.config import settings
 from src.domain.ports.analysis_repository import AnalysisRepository
+from src.domain.ports.replay_progress_repository import ReplayProgressRepository
 from src.infrastructure.kafka.result_consumer import KafkaResultConsumer
 from src.infrastructure.postgres.repository import PostgresAnalysisRepository
+from src.infrastructure.postgres.replay_progress_repository import PostgresReplayProgressRepository
 
 
 class InfrastructureFactory:
     def __init__(self):
         self._consumer: KafkaResultConsumer | None = None
         self._repo: PostgresAnalysisRepository | None = None
+        self._replay_progress_repo: PostgresReplayProgressRepository | None = None
 
     async def start(self) -> None:
         self._repo = PostgresAnalysisRepository(dsn=settings.postgres_url)
         await self._repo.start()
+
+        self._replay_progress_repo = PostgresReplayProgressRepository(dsn=settings.postgres_url)
+        await self._replay_progress_repo.start()
 
         schema_client = SchemaRegistryClient(url=settings.schema_registry_url)
         self._consumer = KafkaResultConsumer(
@@ -30,8 +36,16 @@ class InfrastructureFactory:
             raise RuntimeError("Factory not started. Call start() first.")
         return self._repo
 
+    @property
+    def replay_progress_repo(self) -> ReplayProgressRepository:
+        if not self._replay_progress_repo:
+            raise RuntimeError("Factory not started. Call start() first.")
+        return self._replay_progress_repo
+
     async def stop(self) -> None:
         if self._consumer:
             await self._consumer.stop()
+        if self._replay_progress_repo:
+            await self._replay_progress_repo.stop()
         if self._repo:
             await self._repo.stop()

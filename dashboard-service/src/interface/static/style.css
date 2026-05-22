@@ -8,12 +8,15 @@ header {
 header img { height: 28px; width: auto; }
 header h1 { font-size: 1.1rem; color: #58a6ff; }
 
-button#trigger {
+button#trigger, button#trigger-replay {
   padding: 8px 16px; background: #238636; color: #fff;
-  border: none; border-radius: 6px; cursor: pointer; font-size: 0.9rem;
+  border: none; border-radius: 6px; cursor: pointer; font-size: 0.9rem; width: 100%;
 }
-button#trigger:hover { background: #2ea043; }
-button#trigger:disabled { background: #3d4b3e; cursor: not-allowed; }
+button#trigger:hover, button#trigger-replay:hover { background: #2ea043; }
+button#trigger:disabled, button#trigger-replay:disabled { background: #3d4b3e; cursor: not-allowed; }
+
+.tab-or { font-size: 0.72rem; color: #8b949e; text-align: center; }
+.replay-msg { font-size: 0.78rem; color: #e3b341; text-align: center; }
 
 main { display: flex; height: calc(100vh - 57px); }
 
@@ -79,6 +82,29 @@ main { display: flex; height: calc(100vh - 57px); }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 #diff-container { margin-top: 20px; font-size: 0.8rem; }
+
+/* Tabs */
+#tabs { display: flex !important; gap: 6px; margin: 0 0 4px !important; padding: 6px 12px 0; }
+.tab-content { flex-direction: column; gap: 6px; margin: 0 !important; padding: 0 12px 8px; }
+button.tab {
+  flex: 1; padding: 6px 4px; font-size: 0.8rem; cursor: pointer; width: auto;
+  background: #161b22; color: #8b949e;
+  border: 1px solid #30363d; border-radius: 6px;
+  font-family: system-ui, sans-serif;
+}
+button.tab.active { background: #1c2230; color: #e6edf3; border-color: #58a6ff; }
+button.tab:hover:not(.active) { color: #e6edf3; border-color: #8b949e; }
+
+#repo-select, #repo-custom {
+  width: 100%; padding: 6px 8px; background: #161b22; color: #e6edf3;
+  border: 1px solid #30363d; border-radius: 6px; font-size: 0.82rem;
+  font-family: system-ui, sans-serif; appearance: none; -webkit-appearance: none;
+}
+#repo-select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238b949e'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 8px center; padding-right: 24px; }
+#repo-select option, #repo-select optgroup { background: #161b22; color: #e6edf3; }
+#repo-select:focus, #repo-custom:focus { outline: none; border-color: #58a6ff; }
+#repo-custom::placeholder { color: #484f58; }
 #diff-container .d2h-wrapper { border-radius: 6px; overflow: hidden; }
 .d2h-file-header { background: #161b22; color: #e6edf3; border-color: #30363d; }
 .d2h-diff-table { background: #0d1117; }

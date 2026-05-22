@@ -4,96 +4,6 @@ networks:
 
 services:
 
-  # Application services — opt-in via: docker compose --profile app up
-  ingestion-service:
-    profiles: ["app"]
-    build:
-      context: .
-      dockerfile: ingestion-service/Dockerfile
-      target: app
-    ports:
-      - "8000:8000"
-    environment:
-      INGESTION_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      INGESTION_SCHEMA_REGISTRY_URL: http://schema-registry:8081
-      INGESTION_OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
-    depends_on:
-      - kafka
-      - schema-registry
-      - otel-collector
-    networks:
-      - guardain-net
-
-  analysis-worker:
-    profiles: ["app"]
-    build:
-      context: .
-      dockerfile: analysis-worker/Dockerfile
-      target: app
-      args:
-        GIT_SHA: ${GIT_SHA:-unknown}
-    environment:
-      ANALYSIS_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      ANALYSIS_SCHEMA_REGISTRY_URL: http://schema-registry:8081
-      ANALYSIS_OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
-      ANALYSIS_POSTGRES_DSN: postgresql://postgres:postgres@postgres:5432/analysis_db
-      ANALYSIS_LLM_CONFIGS: ${ANALYSIS_LLM_CONFIGS}
-      ANALYSIS_EMBEDDING_CONFIGS: ${ANALYSIS_EMBEDDING_CONFIGS}
-      ANALYSIS_GITHUB_TOKEN: ${ANALYSIS_GITHUB_TOKEN}
-      ANALYSIS_LANGFUSE_PUBLIC_KEY: ${ANALYSIS_LANGFUSE_PUBLIC_KEY:-}
-      ANALYSIS_LANGFUSE_SECRET_KEY: ${ANALYSIS_LANGFUSE_SECRET_KEY:-}
-      ANALYSIS_LANGFUSE_HOST: ${ANALYSIS_LANGFUSE_HOST:-https://cloud.langfuse.com}
-    depends_on:
-      - kafka
-      - schema-registry
-      - postgres
-      - otel-collector
-    networks:
-      - guardain-net
-
-  notification-worker:
-    profiles: ["app"]
-    build:
-      context: .
-      dockerfile: notification-worker/Dockerfile
-      target: app
-    environment:
-      NOTIFICATION_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      NOTIFICATION_SCHEMA_REGISTRY_URL: http://schema-registry:8081
-      NOTIFICATION_OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
-      NOTIFICATION_GITHUB_TOKEN: ${NOTIFICATION_GITHUB_TOKEN}
-      NOTIFICATION_SLACK_WEBHOOK_URL: ${NOTIFICATION_SLACK_WEBHOOK_URL}
-    depends_on:
-      - kafka
-      - schema-registry
-      - otel-collector
-    networks:
-      - guardain-net
-
-  dashboard-service:
-    profiles: ["app"]
-    build:
-      context: .
-      dockerfile: dashboard-service/Dockerfile
-      target: app
-    ports:
-      - "8002:8002"
-    environment:
-      DASHBOARD_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      DASHBOARD_SCHEMA_REGISTRY_URL: http://schema-registry:8081
-      DASHBOARD_OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
-      DASHBOARD_POSTGRES_URL: postgresql://postgres:postgres@postgres:5432/dashboard_db
-      DASHBOARD_INGESTION_URL: http://ingestion-service:8000/webhooks/github
-      DASHBOARD_GITHUB_TOKEN: ${DASHBOARD_GITHUB_TOKEN}
-    depends_on:
-      - kafka
-      - schema-registry
-      - postgres
-      - ingestion-service
-      - otel-collector
-    networks:
-      - guardain-net
-
   # Database with Vector Support
   postgres:
     image: ankane/pgvector:latest
@@ -286,5 +196,100 @@ services:
       SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
     depends_on:
       - kafka
+    networks:
+      - guardain-net
+
+
+  # Application services — opt-in via: docker compose --profile app up
+  ingestion-service:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: ingestion-service/Dockerfile
+      target: app
+    container_name: guardain_ingestion_service      
+    ports:
+      - "8000:8000"
+    environment:
+      INGESTION_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      INGESTION_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      INGESTION_OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+    depends_on:
+      - kafka
+      - schema-registry
+      - otel-collector
+    networks:
+      - guardain-net
+
+  analysis-worker:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: analysis-worker/Dockerfile
+      target: app
+      args:
+        GIT_SHA: ${GIT_SHA:-unknown}
+    container_name: guardain_analysis_worker        
+    environment:
+      ANALYSIS_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      ANALYSIS_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      ANALYSIS_OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      ANALYSIS_POSTGRES_DSN: postgresql://postgres:postgres@postgres:5432/analysis_db
+      ANALYSIS_LLM_CONFIGS: ${ANALYSIS_LLM_CONFIGS}
+      ANALYSIS_EMBEDDING_CONFIGS: ${ANALYSIS_EMBEDDING_CONFIGS}
+      ANALYSIS_GITHUB_TOKEN: ${ANALYSIS_GITHUB_TOKEN}
+      ANALYSIS_LANGFUSE_PUBLIC_KEY: ${ANALYSIS_LANGFUSE_PUBLIC_KEY:-}
+      ANALYSIS_LANGFUSE_SECRET_KEY: ${ANALYSIS_LANGFUSE_SECRET_KEY:-}
+      ANALYSIS_LANGFUSE_HOST: ${ANALYSIS_LANGFUSE_HOST:-https://cloud.langfuse.com}
+    depends_on:
+      - kafka
+      - schema-registry
+      - postgres
+      - otel-collector
+    networks:
+      - guardain-net
+
+  notification-worker:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: notification-worker/Dockerfile
+      target: app
+    container_name: guardain_notification_worker
+    environment:
+      NOTIFICATION_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      NOTIFICATION_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      NOTIFICATION_OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      NOTIFICATION_GITHUB_TOKEN: ${NOTIFICATION_GITHUB_TOKEN}
+      NOTIFICATION_SLACK_WEBHOOK_URL: ${NOTIFICATION_SLACK_WEBHOOK_URL}
+    depends_on:
+      - kafka
+      - schema-registry
+      - otel-collector
+    networks:
+      - guardain-net
+
+  dashboard-service:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: dashboard-service/Dockerfile
+      target: app
+    container_name: guardain_dashboard_service
+    ports:
+      - "8002:8002"
+    environment:
+      DASHBOARD_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      DASHBOARD_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+      DASHBOARD_OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      DASHBOARD_POSTGRES_URL: postgresql://postgres:postgres@postgres:5432/dashboard_db
+      DASHBOARD_INGESTION_URL: http://ingestion-service:8000/webhooks/github
+      DASHBOARD_GITHUB_TOKEN: ${DASHBOARD_GITHUB_TOKEN}
+    depends_on:
+      - kafka
+      - schema-registry
+      - postgres
+      - ingestion-service
+      - otel-collector
     networks:
       - guardain-net
