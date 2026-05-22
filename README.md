@@ -17,6 +17,21 @@
 
 ---
 
+## 📋 Table of Contents
+
+- [Why](#-why)
+- [Key Features](#-key-features)
+- [Getting Started](#-getting-started)
+- [How It Works](#️-how-it-works)
+- [AI Design](#-ai-design)
+- [Observability](#-observability)
+- [Testing](#-testing)
+- [Infrastructure](#️-infrastructure)
+- [Contributing](#-contributing)
+- [License](#-license)
+
+---
+
 ## ✨ Why
 
 PR reviews slow down delivery. Reviewers miss architectural drift. Feedback arrives after the merge, when changing course is expensive. Blueprint GuardAIn acts as an always-on peer reviewer — catching architectural violations the moment a PR opens, before human review begins. It learns from your codebase over time, so its feedback gets sharper with every PR.
@@ -42,19 +57,6 @@ PR reviews slow down delivery. Reviewers miss architectural drift. Feedback arri
 
 ---
 
-## 📋 Table of Contents
-
-- [Getting Started](#-getting-started)
-- [How It Works](#️-how-it-works)
-- [AI Design](#-ai-design)
-- [Observability](#-observability)
-- [Testing](#-testing)
-- [Infrastructure](#️-infrastructure)
-- [Contributing](#-contributing)
-- [License](#-license)
-
----
-
 ## 🚀 Getting Started
 
 **Prerequisites:** Python 3.12+, `uv`, Docker & Docker Compose, LLM API key, GitHub token.
@@ -71,9 +73,10 @@ Before running the stack, fill in the required variables in the root `.env` file
 | `DASHBOARD_GITHUB_TOKEN` | ✅ | GitHub token used by the dashboard |
 | `NOTIFICATION_GITHUB_TOKEN` | ☐ | GitHub token for posting PR comments |
 | `NOTIFICATION_SLACK_WEBHOOK_URL` | ☐ | Slack webhook for analysis notifications |
-| `ANALYSIS_LANGFUSE_PUBLIC_KEY` | ☐ | Langfuse public key — enables LLM tracing if set |
+| `ANALYSIS_LANGFUSE_PUBLIC_KEY` | ☐ | Langfuse public key — enables LLM tracing and prompt management if set |
 | `ANALYSIS_LANGFUSE_SECRET_KEY` | ☐ | Langfuse secret key |
 | `ANALYSIS_LANGFUSE_HOST` | ☐ | Langfuse host (EU: `https://cloud.langfuse.com`, US: `https://us.cloud.langfuse.com`) |
+| `ANALYSIS_LANGFUSE_PROMPT_NAME` | ☐ | Name of the prompt to fetch from Langfuse (default: `architectural-review`) |
 
 #### LLM and embedding config format
 
@@ -198,6 +201,27 @@ Both LLM and embedding models are configured as ordered lists in `ANALYSIS_LLM_C
 
 Each entry can use a completely different provider (e.g. Gemini as primary, Groq as fallback), since each carries its own model name and API key independently.
 
+### Prompt Management
+
+The analysis prompt is stored and versioned in [Langfuse](https://cloud.langfuse.com) instead of being hardcoded. This lets you iterate on the prompt, compare versions against real traces, and roll back without redeploying.
+
+To set it up, create a prompt named `architectural-review` in the Langfuse UI (or override the name via `ANALYSIS_LANGFUSE_PROMPT_NAME`). Use `{{variable}}` placeholders — the analysis worker injects these at runtime:
+
+| Variable | Content |
+| :--- | :--- |
+| `repository` | GitHub repository name (`owner/repo`) |
+| `event_type` | Webhook event type (e.g. `push`) |
+| `ref` | Git ref (branch or tag) |
+| `sha` | Commit SHA being analysed |
+| `patch_section` | Changed files and their diffs |
+| `size_note` | Warning when files were dropped due to size limits |
+| `messages_section` | Commit messages included in the push |
+| `examples_section` | Top-3 similar past findings from the RAG knowledge base |
+
+Label the version you want active as **`production`** in Langfuse. Each analysis trace records the exact `prompt_version` used, so you can correlate prompt changes with shifts in analysis quality over time.
+
+If the Langfuse keys are not set, the worker falls back to the last cached version of the prompt and logs a warning — analysis continues uninterrupted.
+
 ### Seed Knowledge
 
 The knowledge base can be pre-populated with curated architectural rules via `scripts/seed_findings.py`. This avoids a cold-start problem: the system provides useful feedback from day one, without needing to accumulate a history of real code changes first. The seed set covers common DDD/hexagonal patterns (port definitions, use case isolation, Kafka adapter responsibilities, trace propagation).
@@ -222,7 +246,7 @@ Trace context is propagated across Kafka boundaries using **W3C `traceparent` he
 
 ### LLM observability with Langfuse
 
-Set `ANALYSIS_LANGFUSE_PUBLIC_KEY` and `ANALYSIS_LANGFUSE_SECRET_KEY` in `.env` to capture every LLM call (model, tokens, cost, prompt, completion) in [Langfuse Cloud](https://cloud.langfuse.com). The Langfuse SDK attaches a span processor to the same global `TracerProvider` used for Tempo, and its built-in filter only exports LLM-tagged spans — so Tempo continues to receive the full trace tree while Langfuse only sees the generations. Leave the keys blank to disable; nothing else changes.
+Set `ANALYSIS_LANGFUSE_PUBLIC_KEY` and `ANALYSIS_LANGFUSE_SECRET_KEY` in `.env` to capture every LLM call (model, tokens, cost, prompt, completion) in [Langfuse Cloud](https://cloud.langfuse.com). The Langfuse SDK attaches a span processor to the same global `TracerProvider` used for Tempo, and its built-in filter only exports LLM-tagged spans — so Tempo continues to receive the full trace tree while Langfuse only sees the generations. Each trace is linked to the exact prompt version that produced it, making it straightforward to correlate prompt changes with quality shifts. Leave the keys blank to disable; nothing else changes.
 
 
 ---
