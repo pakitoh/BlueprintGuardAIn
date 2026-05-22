@@ -74,6 +74,7 @@ def _setup_logging(resource):
         "aiokafka": logging.INFO,
         "asyncio": logging.INFO,
         "LiteLLM": logging.ERROR,
+        "LiteLLM Router": logging.ERROR,
     }
     for name, level in (overrides or {}).items():
         logging.getLogger(name).setLevel(level)

@@ -30,6 +30,8 @@ services:
       context: .
       dockerfile: analysis-worker/Dockerfile
       target: app
+      args:
+        GIT_SHA: ${GIT_SHA:-unknown}
     environment:
       ANALYSIS_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       ANALYSIS_SCHEMA_REGISTRY_URL: http://schema-registry:8081

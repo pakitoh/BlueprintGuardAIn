@@ -1,8 +1,6 @@
 from functools import wraps
 from opentelemetry import trace
 
-from src.application.services.prompt_config import PROMPT_VERSION
-
 
 def traced(span_name: str):
     def decorator(fn):
@@ -13,7 +11,6 @@ def traced(span_name: str):
                 attributes={
                     "repository": change.repository,
                     "sha": change.target_sha,
-                    "prompt_version": PROMPT_VERSION,
                 },
             ):
                 return await fn(self, change)

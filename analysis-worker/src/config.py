@@ -38,6 +38,8 @@ class Settings(BaseSettings):
     langfuse_public_key: str = ""
     langfuse_secret_key: str = ""
     langfuse_host: str = "https://cloud.langfuse.com"
+    langfuse_prompt_name: str = "architectural-review"
+    langfuse_prompt_cache_ttl_seconds: int = 60
 
     model_config = SettingsConfigDict(
         env_file=".env",

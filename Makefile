@@ -36,7 +36,7 @@ seed:
 	cd analysis-worker && uv run python ../scripts/seed_findings.py
 
 build:
-	docker compose --profile app build
+	GIT_SHA=$$(git rev-parse HEAD) docker compose --profile app build
 
 up:
 	docker compose --profile app up -d

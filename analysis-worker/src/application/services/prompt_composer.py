@@ -3,22 +3,22 @@ import structlog
 from src.domain.analysis_policy import file_priority, should_skip
 from src.domain.entities import CodeChange, PastFinding
 from src.domain.ports.diff_fetcher import FileDiff
+from src.domain.ports.prompt_repository import PromptRepository
 from src.application.services.prompt_config import (
-    INSTRUCTIONS,
     NONE_LISTED_PLACEHOLDER,
     NO_PATCH_PLACEHOLDER,
     PAST_FINDINGS_HEADER,
     PATCH_BUDGET,
-    PROMPT_TEMPLATE,
-    PROMPT_VERSION,
     SIZE_WARNING,
-    SYSTEM_ROLE,
 )
 
 logger = structlog.get_logger()
 
 
 class PromptComposer:
+    def __init__(self, prompt_repo: PromptRepository) -> None:
+        self._prompt_repo = prompt_repo
+
     def build(
         self,
         change: CodeChange,
@@ -26,22 +26,19 @@ class PromptComposer:
         past: list[PastFinding],
     ) -> str:
         included, dropped = self._select_files_for_review(diffs)
-        prompt = PROMPT_TEMPLATE.format(
-            system_role=SYSTEM_ROLE,
-            repository=change.repository,
-            event_type=change.event_type,
-            ref=change.ref,
-            sha=change.target_sha,
-            patch_section=self._format_patch_section(included),
-            size_note=self._format_size_note(dropped),
-            messages_section=self._format_messages_section(change),
-            examples_section=self._format_examples_section(past),
-            instructions=INSTRUCTIONS,
-        )
+        prompt = self._prompt_repo.compile({
+            "repository": change.repository,
+            "event_type": change.event_type,
+            "ref": change.ref,
+            "sha": change.target_sha,
+            "patch_section": self._format_patch_section(included),
+            "size_note": self._format_size_note(dropped),
+            "messages_section": self._format_messages_section(change),
+            "examples_section": self._format_examples_section(past),
+        })
         logger.info(
             "prompt_built",
             repo=change.repository,
-            prompt_version=PROMPT_VERSION,
             files_included=len(included),
             files_dropped=dropped if dropped else None,
             prompt_chars=len(prompt),

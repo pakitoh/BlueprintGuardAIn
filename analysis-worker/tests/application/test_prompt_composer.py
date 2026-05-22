@@ -1,10 +1,16 @@
 from src.domain.entities import CodeChange, PastFinding
 from src.domain.ports.diff_fetcher import FileDiff
+from src.domain.ports.prompt_repository import PromptRepository
 from src.application.services.prompt_config import (
     NONE_LISTED_PLACEHOLDER,
     NO_PATCH_PLACEHOLDER,
 )
 from src.application.services.prompt_composer import PromptComposer
+
+
+class StubPromptRepository(PromptRepository):
+    def compile(self, variables: dict[str, str]) -> str:
+        return " ".join(variables.values())
 
 
 def a_change(repository="org/service", raw_payload=None):
@@ -39,7 +45,7 @@ def a_file_diff(
 
 
 def a_composer():
-    return PromptComposer()
+    return PromptComposer(StubPromptRepository())
 
 
 # --- build ---

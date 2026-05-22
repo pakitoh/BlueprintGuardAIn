@@ -55,6 +55,9 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 ## Stage: app
 FROM base AS app
 
+ARG GIT_SHA=unknown
+ENV GIT_SHA=${GIT_SHA}
+
 COPY --from=deps --chown="${USER}:${USER}" ${APP_PATH}/.venv ${APP_PATH}/.venv
 
 RUN mkdir -p src logs && chown "${USER}:${USER}" src logs

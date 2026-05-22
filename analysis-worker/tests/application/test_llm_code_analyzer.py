@@ -3,10 +3,16 @@ from unittest.mock import AsyncMock
 
 from src.domain.entities import CodeChange, LLMResponse
 from src.domain.ports.diff_fetcher import FileDiff
+from src.domain.ports.prompt_repository import PromptRepository
 from src.application.services.finding_parser import FindingParser
 from src.application.services.findings_validator import FindingsValidator
 from src.application.services.llm_code_analyzer import LLMCodeAnalyzer
 from src.application.services.prompt_composer import PromptComposer
+
+
+class StubPromptRepository(PromptRepository):
+    def compile(self, variables: dict[str, str]) -> str:
+        return " ".join(variables.values())
 
 
 def a_change(repository="org/service", raw_payload=None):
@@ -63,7 +69,7 @@ def an_analyzer(llm_client=None, diff_fetcher=None, findings_store=None):
         findings_store.save = AsyncMock()
     return LLMCodeAnalyzer(
         diff_fetcher=diff_fetcher,
-        prompt_composer=PromptComposer(),
+        prompt_composer=PromptComposer(StubPromptRepository()),
         llm_client=llm_client,
         findings_store=findings_store,
         finding_parser=FindingParser(),

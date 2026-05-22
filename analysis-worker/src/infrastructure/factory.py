@@ -7,6 +7,7 @@ from src.application.services.llm_code_analyzer import LLMCodeAnalyzer
 from src.application.services.prompt_composer import PromptComposer
 from src.infrastructure.github.github_diff_fetcher import GitHubDiffFetcher
 from src.infrastructure.instrumentation import flush_langfuse
+from src.infrastructure.langfuse.prompt_repository import LangfusePromptRepository
 from src.infrastructure.kafka.analysis_result_repository import (
     KafkaAnalysisResultRepository,
 )
@@ -80,9 +81,16 @@ class InfrastructureFactory:
             schema_client=self.schema_client,
             schema_str=schema_str,
         )
+        from langfuse import get_client
+
+        prompt_repo = LangfusePromptRepository(
+            client=get_client(),
+            prompt_name=settings.langfuse_prompt_name,
+            cache_ttl_seconds=settings.langfuse_prompt_cache_ttl_seconds,
+        )
         self._analyzer = LLMCodeAnalyzer(
             diff_fetcher=GitHubDiffFetcher(token=settings.github_token),
-            prompt_composer=PromptComposer(),
+            prompt_composer=PromptComposer(prompt_repo),
             llm_client=LiteLLMClient(
                 configs=[(c.model, c.api_key) for c in settings.llm_configs],
             ),
