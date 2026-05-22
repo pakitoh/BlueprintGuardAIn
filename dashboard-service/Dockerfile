@@ -63,7 +63,7 @@ COPY dashboard-service/src ${APP_PATH}/src
 
 USER ${USER}
 
-HEALTHCHECK --interval=10s --timeout=5s --start-period=10s --retries=5 \
+HEALTHCHECK --interval=60s --timeout=5s --start-period=10s --retries=5 \
   CMD curl -f http://localhost:8002/health || exit 1
 ENTRYPOINT ["uv", "run", "python", "-m", "src.main"]
 
