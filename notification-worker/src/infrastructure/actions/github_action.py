@@ -1,5 +1,6 @@
 import httpx
 import structlog
+
 from src.domain.entities import AnalysisResult
 from src.domain.exceptions import ActionError
 from src.domain.ports.action_port import ActionPort
@@ -27,7 +28,7 @@ class GitHubAction(ActionPort):
                 response.raise_for_status()
             logger.info("github_comment_posted", repo=result.repository, sha=result.sha)
         except Exception as e:
-            raise ActionError(f"Failed to post GitHub comment: {e}")
+            raise ActionError(f"Failed to post GitHub comment: {e}") from e
 
     def _format_comment(self, result: AnalysisResult) -> str:
         lines = [f"## Blueprint GuardAIn — {result.status}", ""]

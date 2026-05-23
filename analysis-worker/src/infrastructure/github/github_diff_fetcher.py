@@ -1,6 +1,14 @@
-import structlog
+from typing import Any
+
 import httpx
-from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
+import structlog
+from tenacity import (
+    RetryCallState,
+    retry,
+    retry_if_exception,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from src.domain.ports.diff_fetcher import DiffFetcher, FileDiff
 from src.infrastructure.github.github_config import (
@@ -12,6 +20,11 @@ from src.infrastructure.github.github_config import (
 )
 
 logger = structlog.get_logger()
+
+
+def _log_github_retry(rs: RetryCallState) -> None:
+    err: Any = rs.outcome.exception() if rs.outcome is not None else None
+    logger.warning("github_retry", attempt=rs.attempt_number, error=str(err))
 
 
 def _is_retryable_github_error(exc: BaseException) -> bool:
@@ -37,9 +50,7 @@ class GitHubDiffFetcher(DiffFetcher):
         ),
         retry=retry_if_exception(_is_retryable_github_error),
         reraise=True,
-        before_sleep=lambda rs: logger.warning(
-            "github_retry", attempt=rs.attempt_number, error=str(rs.outcome.exception())
-        ),
+        before_sleep=_log_github_retry,
     )
     async def fetch(self, repository: str, sha: str) -> list[FileDiff]:
         try:

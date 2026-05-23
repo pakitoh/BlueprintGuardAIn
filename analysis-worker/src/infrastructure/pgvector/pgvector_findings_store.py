@@ -1,9 +1,9 @@
 import time
-import structlog
-from typing import List
+from typing import Any
 
 import asyncpg
-from tenacity import retry, stop_after_attempt, wait_exponential
+import structlog
+from tenacity import RetryCallState, retry, stop_after_attempt, wait_exponential
 
 from src.domain.entities import CodeChange, PastFinding
 from src.domain.ports.diff_fetcher import FileDiff
@@ -18,6 +18,12 @@ from src.infrastructure.pgvector.pgvector_config import (
 )
 
 logger = structlog.get_logger()
+
+
+def _log_embed_retry(rs: RetryCallState) -> None:
+    err: Any = rs.outcome.exception() if rs.outcome is not None else None
+    logger.warning("embed_retry", attempt=rs.attempt_number, error=str(err))
+
 
 _LAYER_KEYWORDS = {
     "domain",
@@ -45,8 +51,8 @@ def _to_embedding_text(
     # fallback to path-based text when no diffs are available
     commits = change.raw_payload.get("commits", [])
 
-    normalized_paths: List[str] = []
-    messages: List[str] = []
+    normalized_paths: list[str] = []
+    messages: list[str] = []
 
     for commit in commits:
         for path in (
@@ -56,7 +62,7 @@ def _to_embedding_text(
         ):
             parts = path.replace("\\", "/").split("/")
             layer_parts = [p for p in parts[:-1] if p.lower() in _LAYER_KEYWORDS]
-            normalized_paths.append("/".join(layer_parts + [parts[-1]]))
+            normalized_paths.append("/".join([*layer_parts, parts[-1]]))
 
         if msg := commit.get("message", "").strip():
             messages.append(msg)
@@ -81,9 +87,7 @@ class PgVectorFindingsStore(FindingsStore):
             multiplier=EMBED_WAIT_MULTIPLIER, min=EMBED_WAIT_MIN, max=EMBED_WAIT_MAX
         ),
         reraise=True,
-        before_sleep=lambda rs: logger.warning(
-            "embed_retry", attempt=rs.attempt_number, error=str(rs.outcome.exception())
-        ),
+        before_sleep=_log_embed_retry,
     )
     async def _embed(self, text: str) -> list[float]:
         return await self._embedder.embed(text)
@@ -102,7 +106,7 @@ class PgVectorFindingsStore(FindingsStore):
         change: CodeChange,
         limit: int = 3,
         file_diffs: list[FileDiff] | None = None,
-    ) -> List[PastFinding]:
+    ) -> list[PastFinding]:
         try:
             text = _to_embedding_text(change, file_diffs)
             vector = await self._embed(text)
@@ -139,7 +143,7 @@ class PgVectorFindingsStore(FindingsStore):
     async def save(
         self,
         change: CodeChange,
-        findings: List[str],
+        findings: list[str],
         file_diffs: list[FileDiff] | None = None,
     ) -> None:
         if not findings:

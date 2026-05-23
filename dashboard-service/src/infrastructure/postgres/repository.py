@@ -29,16 +29,19 @@ class PostgresAnalysisRepository(AnalysisRepository):
             await self._pool.close()
 
     async def save(self, record: AnalysisRecord) -> None:
+        assert self._pool is not None
         async with self._pool.acquire() as conn:
             await self._insert_record(conn, record)
 
     async def update(self, record: AnalysisRecord) -> None:
+        assert self._pool is not None
         async with self._pool.acquire() as conn:
             async with conn.transaction():
                 await self._update_record_status(conn, record)
                 await self._insert_findings(conn, record)
 
     async def get(self, id: str) -> AnalysisRecord | None:
+        assert self._pool is not None
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(
                 _FETCH_QUERY + "WHERE r.id = $1 GROUP BY r.id", id
@@ -46,6 +49,7 @@ class PostgresAnalysisRepository(AnalysisRepository):
         return _to_entity(row) if row else None
 
     async def get_by_repo_sha(self, repository: str, sha: str) -> AnalysisRecord | None:
+        assert self._pool is not None
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(
                 _FETCH_QUERY
@@ -56,6 +60,7 @@ class PostgresAnalysisRepository(AnalysisRepository):
         return _to_entity(row) if row else None
 
     async def list_all(self) -> list[AnalysisRecord]:
+        assert self._pool is not None
         async with self._pool.acquire() as conn:
             rows = await conn.fetch(
                 _FETCH_QUERY + "GROUP BY r.id ORDER BY r.created_at DESC"
@@ -66,7 +71,8 @@ class PostgresAnalysisRepository(AnalysisRepository):
         self, conn: asyncpg.Connection, record: AnalysisRecord
     ) -> None:
         await conn.execute(
-            "INSERT INTO analysis_records (id, repository, sha, status, created_at) VALUES ($1,$2,$3,$4,$5)",
+            "INSERT INTO analysis_records "
+            "(id, repository, sha, status, created_at) VALUES ($1,$2,$3,$4,$5)",
             record.id,
             record.repository,
             record.sha,
@@ -89,7 +95,8 @@ class PostgresAnalysisRepository(AnalysisRepository):
     ) -> None:
         if record.findings:
             await conn.executemany(
-                "INSERT INTO analysis_findings (analysis_id, position, content) VALUES ($1,$2,$3)",
+                "INSERT INTO analysis_findings "
+                "(analysis_id, position, content) VALUES ($1,$2,$3)",
                 [(record.id, i, finding) for i, finding in enumerate(record.findings)],
             )
 

@@ -1,8 +1,9 @@
 import structlog
-from src.domain.entities import CodeChange, AnalysisResult
-from src.domain.ports.code_change_source import CodeChangeSource
+
+from src.domain.entities import AnalysisResult, CodeChange
 from src.domain.ports.analysis_result_repository import AnalysisResultRepository
 from src.domain.ports.code_analyzer import CodeAnalyzer
+from src.domain.ports.code_change_source import CodeChangeSource
 
 logger = structlog.get_logger()
 

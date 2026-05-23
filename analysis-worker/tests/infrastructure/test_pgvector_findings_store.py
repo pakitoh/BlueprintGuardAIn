@@ -1,5 +1,7 @@
-import pytest
 from unittest.mock import AsyncMock
+
+import pytest
+
 from src.domain.entities import CodeChange
 from src.infrastructure.pgvector.pgvector_findings_store import (
     PgVectorFindingsStore,
@@ -115,7 +117,7 @@ async def test_save_inserts_combined_findings():
     store, _ = a_store(pool=pool)
     await store.save(a_change_with_commits(), ["Finding A", "Finding B"])
     pool.execute.assert_awaited_once()
-    sql, rule_text, *_ = pool.execute.call_args[0]
+    _sql, rule_text, *_ = pool.execute.call_args[0]
     assert "Finding A" in rule_text
     assert "Finding B" in rule_text
 

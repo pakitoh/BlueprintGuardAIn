@@ -1,5 +1,6 @@
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 from litellm import ServiceUnavailableError
 
 from src.domain.entities import LLMResponse

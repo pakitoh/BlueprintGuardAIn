@@ -1,5 +1,6 @@
+from typing import Any
+
 from pydantic import BaseModel
-from typing import Optional, Dict, Any
 
 
 class RepositoryDTO(BaseModel):
@@ -18,20 +19,21 @@ class CommitDTO(BaseModel):
 class PullRequestDTO(BaseModel):
     number: int
     title: str
-    head: Dict[str, Any]
-    base: Dict[str, Any]
+    head: dict[str, Any]
+    base: dict[str, Any]
 
 
 class GithubWebhookDTO(BaseModel):
     """
     Data Transfer Object for GitHub Webhooks.
-    We use Optional fields because the structure varies between 'push' and 'pull_request'.
+    We use Optional fields because the structure varies between
+    'push' and 'pull_request'.
     """
 
-    action: Optional[str] = None
-    number: Optional[int] = None
-    ref: Optional[str] = None
-    after: Optional[str] = None
+    action: str | None = None
+    number: int | None = None
+    ref: str | None = None
+    after: str | None = None
     repository: RepositoryDTO
     commits: list[CommitDTO] = []
-    pull_request: Optional[PullRequestDTO] = None
+    pull_request: PullRequestDTO | None = None

@@ -1,9 +1,10 @@
-import pytest
 from unittest.mock import AsyncMock
-from src.application.use_cases.process_webhook import ProcessWebhookUseCase
-from src.domain.ports.repository import CodeChangeRepository
-from src.domain.exceptions import MappingError
 
+import pytest
+
+from src.application.use_cases.process_webhook import ProcessWebhookUseCase
+from src.domain.exceptions import MappingError
+from src.domain.ports.repository import CodeChangeRepository
 
 # --- Helpers ---
 
@@ -73,7 +74,7 @@ async def test_push_sets_event_type():
 
 @pytest.mark.asyncio
 async def test_push_raises_on_malformed_payload():
-    use_case, mock_repo = a_use_case()
+    use_case, _mock_repo = a_use_case()
     with pytest.raises(MappingError):
         await use_case.execute({"ref": "only-ref"}, event_type="push")
 
@@ -121,7 +122,7 @@ async def test_pr_sets_event_type():
 
 @pytest.mark.asyncio
 async def test_pr_raises_on_malformed_payload():
-    use_case, mock_repo = a_use_case()
+    use_case, _mock_repo = a_use_case()
     with pytest.raises(MappingError):
         await use_case.execute({"number": 1}, event_type="pull_request")
 
@@ -131,14 +132,14 @@ async def test_pr_raises_on_malformed_payload():
 
 @pytest.mark.asyncio
 async def test_unsupported_event_raises_mapping_error():
-    use_case, mock_repo = a_use_case()
+    use_case, _mock_repo = a_use_case()
     with pytest.raises(MappingError):
         await use_case.execute({}, event_type="star")
 
 
 @pytest.mark.asyncio
 async def test_unsupported_event_names_the_bad_type():
-    use_case, mock_repo = a_use_case()
+    use_case, _mock_repo = a_use_case()
     with pytest.raises(MappingError, match="star"):
         await use_case.execute({}, event_type="star")
 

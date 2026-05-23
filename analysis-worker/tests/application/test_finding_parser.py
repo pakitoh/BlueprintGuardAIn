@@ -1,4 +1,5 @@
 import pytest
+
 from src.application.services.finding_parser import FindingParser
 
 

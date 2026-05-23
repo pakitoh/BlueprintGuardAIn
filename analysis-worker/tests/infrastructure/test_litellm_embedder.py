@@ -1,4 +1,5 @@
 import pytest
+
 from src.infrastructure.llm.litellm_embedder import LiteLLMEmbedder
 
 

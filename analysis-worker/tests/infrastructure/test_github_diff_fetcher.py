@@ -1,6 +1,7 @@
-import pytest
-import httpx
 from unittest.mock import AsyncMock, MagicMock
+
+import httpx
+import pytest
 
 from src.infrastructure.github.github_diff_fetcher import GitHubDiffFetcher
 

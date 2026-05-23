@@ -1,5 +1,7 @@
-import pytest
 from unittest.mock import AsyncMock
+
+import pytest
+
 from src.application.use_cases.analyze_code_change import AnalyzeCodeChangeUseCase
 from src.domain.entities import CodeChange
 

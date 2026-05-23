@@ -1,19 +1,21 @@
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
-import structlog
 
-from src.interface.api.router import router
+import structlog
+from fastapi import FastAPI
+
 from src.config import settings
+from src.infrastructure.factory import InfrastructureFactory
 from src.infrastructure.instrumentation import (
     instrument_app,
-    uvicorn_log_config,
     resolve_commit_sha,
+    uvicorn_log_config,
 )
-from src.infrastructure.factory import InfrastructureFactory
+from src.interface.api.router import router
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.version = resolve_commit_sha()
     factory = InfrastructureFactory()
     await factory.start()

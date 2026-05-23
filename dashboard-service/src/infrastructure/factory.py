@@ -1,24 +1,34 @@
+from collections.abc import Awaitable, Callable
+
 from schema_registry.client import SchemaRegistryClient
 
 from src.config import settings
+from src.domain.entities import AnalysisRecord
 from src.domain.ports.analysis_repository import AnalysisRepository
 from src.domain.ports.replay_progress_repository import ReplayProgressRepository
 from src.infrastructure.kafka.result_consumer import KafkaResultConsumer
+from src.infrastructure.postgres.replay_progress_repository import (
+    PostgresReplayProgressRepository,
+)
 from src.infrastructure.postgres.repository import PostgresAnalysisRepository
-from src.infrastructure.postgres.replay_progress_repository import PostgresReplayProgressRepository
 
 
 class InfrastructureFactory:
-    def __init__(self):
+    def __init__(self) -> None:
         self._consumer: KafkaResultConsumer | None = None
         self._repo: PostgresAnalysisRepository | None = None
         self._replay_progress_repo: PostgresReplayProgressRepository | None = None
 
-    async def start(self) -> None:
+    async def start(
+        self,
+        on_result: Callable[[AnalysisRecord], Awaitable[None]] | None = None,
+    ) -> None:
         self._repo = PostgresAnalysisRepository(dsn=settings.postgres_url)
         await self._repo.start()
 
-        self._replay_progress_repo = PostgresReplayProgressRepository(dsn=settings.postgres_url)
+        self._replay_progress_repo = PostgresReplayProgressRepository(
+            dsn=settings.postgres_url
+        )
         await self._replay_progress_repo.start()
 
         schema_client = SchemaRegistryClient(url=settings.schema_registry_url)
@@ -28,7 +38,7 @@ class InfrastructureFactory:
             group_id=settings.consumer_group_id,
             schema_client=schema_client,
         )
-        await self._consumer.start(self._repo)
+        await self._consumer.start(self._repo, on_result=on_result)
 
     @property
     def repo(self) -> AnalysisRepository:

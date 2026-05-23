@@ -2,7 +2,6 @@ import { api } from './api.js';
 import { renderCards, renderDetail, renderDiff } from './render.js';
 
 let selected = null;
-let pollTimer = null;
 const diffCache = {};
 
 async function loadDiff(id) {
@@ -26,13 +25,6 @@ async function loadDiff(id) {
 async function loadList() {
   const records = await api('GET', '/analyses');
   renderCards(records, selected, selectRecord);
-  if (selected && pollTimer) {
-    const r = records.find(r => r.id === selected);
-    if (r) {
-      renderDetail(r);
-      loadDiff(r.id);
-    }
-  }
   return records;
 }
 
@@ -42,23 +34,14 @@ async function selectRecord(id) {
   renderDetail(r);
   loadDiff(r.id);
   await loadList();
-  poll(r);
 }
 
-function poll(r) {
-  if (pollTimer) clearInterval(pollTimer);
-  if (r.status !== 'PENDING') return;
-  pollTimer = setInterval(async () => {
-    const updated = await api('GET', `/analyses/${r.id}`);
-    renderDetail(updated);
-    loadDiff(updated.id);
-    await loadList();
-    if (updated.status !== 'PENDING') {
-      clearInterval(pollTimer);
-      pollTimer = null;
-    }
-  }, 2000);
-}
+const es = new EventSource('/api/events');
+es.addEventListener('analysis_updated', async (e) => {
+  const record = JSON.parse(e.data);
+  await loadList();
+  if (selected === record.id) renderDetail(record);
+});
 
 // Tabs
 document.querySelectorAll('.tab').forEach(tab => {
@@ -150,4 +133,3 @@ document.getElementById('trigger-replay').addEventListener('click', async () => 
 
 loadCuratedRepos();
 loadList();
-setInterval(loadList, 5000);

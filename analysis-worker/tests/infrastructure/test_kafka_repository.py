@@ -1,8 +1,10 @@
-import pytest
-import struct
 import json
+import struct
 from datetime import datetime
 from unittest.mock import MagicMock
+
+import pytest
+
 from src.domain.entities import AnalysisResult
 from src.infrastructure.kafka.analysis_result_repository import (
     KafkaAnalysisResultRepository,

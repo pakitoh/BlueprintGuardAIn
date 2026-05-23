@@ -22,9 +22,9 @@ def a_service():
 @pytest.mark.asyncio
 async def test_circuit_opens_after_failure_threshold():
     svc = a_service()
-    with pytest.raises(Exception):
+    with pytest.raises(Exception, match="provider down"):
         await svc.call(succeed=False)
-    with pytest.raises(Exception):
+    with pytest.raises(Exception, match="provider down"):
         await svc.call(succeed=False)
     with pytest.raises(CircuitBreakerOpenError):
         await svc.call(succeed=False)
@@ -67,7 +67,7 @@ async def test_circuit_transitions_to_half_open_after_timeout(mocker):
 @pytest.mark.asyncio
 async def test_failure_count_resets_after_success():
     svc = a_service()
-    with pytest.raises(Exception):
+    with pytest.raises(Exception, match="provider down"):
         await svc.call(succeed=False)
     assert svc._cb_call.failure_count == 1
 
@@ -90,7 +90,7 @@ async def test_each_method_gets_independent_state():
             return "second"
 
     svc = _MultiService()
-    with pytest.raises(Exception):
+    with pytest.raises(Exception, match="provider down"):
         await svc.first(succeed=False)
     with pytest.raises(CircuitBreakerOpenError):
         await svc.first()

@@ -2,7 +2,7 @@ import time
 
 from src.application.use_cases.analyze_code_change import AnalyzeCodeChangeUseCase
 from src.domain.entities import AnalysisResult, CodeChange
-from src.infrastructure.metrics import code_changes_analyzed, analysis_duration
+from src.infrastructure.metrics import analysis_duration, code_changes_analyzed
 from src.infrastructure.tracing.decorators import traced
 
 

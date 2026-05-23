@@ -1,7 +1,7 @@
 import pytest
+
 from src.domain.entities.code_change import CodeChange
 from src.domain.exceptions import MappingError
-
 
 # --- Helpers ---
 

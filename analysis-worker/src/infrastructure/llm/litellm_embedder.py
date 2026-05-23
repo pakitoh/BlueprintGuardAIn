@@ -1,7 +1,7 @@
 import time
+
 import structlog
-from typing import List
-from litellm import Router
+from litellm import Router  # type: ignore[attr-defined]
 
 from src.domain.ports.embedder import Embedder
 from src.infrastructure.metrics import embedding_duration
@@ -22,15 +22,17 @@ class LiteLLMEmbedder(Embedder):
                 "model_name": name,
                 "litellm_params": {"model": model, "api_key": api_key},
             }
-            for name, (model, api_key) in zip(names, configs)
+            for name, (model, api_key) in zip(names, configs, strict=True)
         ]
+        from typing import Any
+        fallbacks: list[Any] = [{names[0]: names[1:]}] if len(names) > 1 else []
         return Router(
             model_list=model_list,
-            fallbacks=[{names[0]: names[1:]}] if len(names) > 1 else None,
+            fallbacks=fallbacks,
             num_retries=3,
         )
 
-    async def embed(self, text: str) -> List[float]:
+    async def embed(self, text: str) -> list[float]:
         start = time.perf_counter()
         response = await self._router.aembedding(
             model="config-0",

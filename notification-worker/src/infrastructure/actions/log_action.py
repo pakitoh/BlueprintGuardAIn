@@ -1,4 +1,5 @@
 import structlog
+
 from src.domain.entities import AnalysisResult
 from src.domain.ports.action_port import ActionPort
 

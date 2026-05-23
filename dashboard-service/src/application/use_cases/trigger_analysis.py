@@ -1,7 +1,8 @@
 import uuid
+from datetime import datetime
+
 import httpx
 import structlog
-from datetime import datetime
 
 from src.domain.entities import AnalysisRecord
 from src.domain.ports.analysis_repository import AnalysisRepository

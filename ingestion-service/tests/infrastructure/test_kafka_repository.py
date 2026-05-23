@@ -1,11 +1,12 @@
-import asyncio
-import pytest
-import struct
 import json
+import struct
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+
 from src.domain.entities.code_change import CodeChange
-from src.infrastructure.kafka.repository import KafkaCodeChangeRepository
 from src.domain.exceptions import RepositoryError
+from src.infrastructure.kafka.repository import KafkaCodeChangeRepository
 
 SCHEMA_ID = 123
 TOPIC = "test-topic"
@@ -111,7 +112,7 @@ async def test_kafka_repository_should_raise_repository_error_on_connection_fail
 async def test_kafka_repository_should_raise_repository_error_on_timeout(
     repo, mock_producer
 ):
-    mock_producer.send_and_wait.side_effect = asyncio.TimeoutError("timeout")
+    mock_producer.send_and_wait.side_effect = TimeoutError("timeout")
     change = CodeChange(
         repository=REPOSITORY,
         ref=REF,

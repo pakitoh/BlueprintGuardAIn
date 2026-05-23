@@ -2,7 +2,8 @@ MAX_VALIDATION_RETRIES = 2
 
 RETRY_EMPTY_FINDINGS = (
     "\n\nYour previous response contained no findings. "
-    "The diff is non-trivial — please re-examine it and provide at least one architectural observation."
+    "The diff is non-trivial — please re-examine it and provide at least one "
+    "architectural observation."
 )
 
 RETRY_DUPLICATE_FINDINGS = (

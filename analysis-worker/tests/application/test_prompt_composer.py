@@ -1,11 +1,11 @@
+from src.application.services.prompt_composer import PromptComposer
+from src.application.services.prompt_config import (
+    NO_PATCH_PLACEHOLDER,
+    NONE_LISTED_PLACEHOLDER,
+)
 from src.domain.entities import CodeChange, PastFinding
 from src.domain.ports.diff_fetcher import FileDiff
 from src.domain.ports.prompt_repository import PromptRepository
-from src.application.services.prompt_config import (
-    NONE_LISTED_PLACEHOLDER,
-    NO_PATCH_PLACEHOLDER,
-)
-from src.application.services.prompt_composer import PromptComposer
 
 
 class StubPromptRepository(PromptRepository):

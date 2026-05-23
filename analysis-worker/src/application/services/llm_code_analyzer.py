@@ -1,12 +1,6 @@
-import structlog
-from typing import List
 
-from src.domain.entities import CodeChange
-from src.domain.exceptions import DuplicateFindingsError, EmptyFindingsError
-from src.domain.ports.code_analyzer import CodeAnalyzer
-from src.domain.ports.diff_fetcher import DiffFetcher, FileDiff
-from src.domain.ports.findings_store import FindingsStore
-from src.domain.ports.llm_client import LLMClient
+import structlog
+
 from src.application.services.finding_parser import FindingParser
 from src.application.services.findings_validator import FindingsValidator
 from src.application.services.prompt_composer import PromptComposer
@@ -15,6 +9,12 @@ from src.application.services.prompt_config import (
     RETRY_DUPLICATE_FINDINGS,
     RETRY_EMPTY_FINDINGS,
 )
+from src.domain.entities import CodeChange
+from src.domain.exceptions import DuplicateFindingsError, EmptyFindingsError
+from src.domain.ports.code_analyzer import CodeAnalyzer
+from src.domain.ports.diff_fetcher import DiffFetcher, FileDiff
+from src.domain.ports.findings_store import FindingsStore
+from src.domain.ports.llm_client import LLMClient
 
 logger = structlog.get_logger()
 
@@ -36,7 +36,7 @@ class LLMCodeAnalyzer(CodeAnalyzer):
         self._finding_parser = finding_parser
         self._findings_validator = findings_validator
 
-    async def analyze(self, change: CodeChange) -> tuple[List[str], str]:
+    async def analyze(self, change: CodeChange) -> tuple[list[str], str]:
         try:
             diffs = await self._diff_fetcher.fetch(change.repository, change.target_sha)
             past = await self._findings_store.find_similar(change, file_diffs=diffs)

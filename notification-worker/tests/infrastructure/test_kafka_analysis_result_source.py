@@ -1,6 +1,8 @@
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 from opentelemetry import trace
+
 from src.infrastructure.kafka.analysis_result_source import KafkaAnalysisResultSource
 
 

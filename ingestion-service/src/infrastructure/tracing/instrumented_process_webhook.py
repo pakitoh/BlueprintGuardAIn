@@ -2,7 +2,7 @@ import time
 
 from src.application.use_cases.process_webhook import ProcessWebhookUseCase
 from src.domain.exceptions import MappingError
-from src.infrastructure.metrics import webhooks_received, webhook_duration
+from src.infrastructure.metrics import webhook_duration, webhooks_received
 
 
 class InstrumentedProcessWebhookUseCase(ProcessWebhookUseCase):

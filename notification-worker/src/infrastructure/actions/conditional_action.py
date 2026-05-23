@@ -1,10 +1,10 @@
-from typing import List
+
 from src.domain.entities import AnalysisResult
 from src.domain.ports.action_port import ActionPort
 
 
 class ConditionalAction(ActionPort):
-    def __init__(self, inner: ActionPort, trigger_statuses: List[str]):
+    def __init__(self, inner: ActionPort, trigger_statuses: list[str]):
         self._inner = inner
         self._trigger_statuses = trigger_statuses
 

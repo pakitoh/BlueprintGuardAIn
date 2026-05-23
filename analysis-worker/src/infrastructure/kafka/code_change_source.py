@@ -1,14 +1,16 @@
 import io
 import json
 import struct
-import structlog
+from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import AsyncIterator
+from typing import Any, cast
+
+import structlog
 from aiokafka import AIOKafkaConsumer
+from fastavro import schemaless_reader
 from opentelemetry import context as otel_context
 from opentelemetry.propagate import extract
 from schema_registry.client import SchemaRegistryClient
-from fastavro import schemaless_reader
 
 from src.domain.entities import CodeChange
 from src.domain.ports.code_change_source import CodeChangeSource
@@ -28,25 +30,26 @@ class KafkaCodeChangeSource(CodeChangeSource):
         self.topic = topic
         self.group_id = group_id
         self.schema_client = schema_client
-        self.consumer = None
-        self._schema_cache = {}
+        self.consumer: AIOKafkaConsumer | None = None
+        self._schema_cache: dict[int, Any] = {}
 
-    async def start(self):
-        self.consumer = AIOKafkaConsumer(
+    async def start(self) -> None:
+        consumer = AIOKafkaConsumer(
             self.topic,
             bootstrap_servers=self.bootstrap_servers,
             group_id=self.group_id,
             auto_offset_reset="earliest",
         )
-        await self.consumer.start()
+        await consumer.start()
+        self.consumer = consumer
         logger.debug("kafka_consumer_started")
 
-    async def stop(self):
+    async def stop(self) -> None:
         if self.consumer:
             await self.consumer.stop()
             logger.debug("kafka_consumer_stopped")
 
-    def _deserialize_avro(self, payload: bytes) -> dict:
+    def _deserialize_avro(self, payload: bytes) -> dict[str, Any]:
         if len(payload) < 5:
             raise ValueError(f"Payload too short ({len(payload)} bytes).")
 
@@ -57,12 +60,15 @@ class KafkaCodeChangeSource(CodeChangeSource):
         if schema_id not in self._schema_cache:
             try:
                 avro_schema = self.schema_client.get_by_id(schema_id)
+                if avro_schema is None:
+                    raise RuntimeError(f"Schema {schema_id} not found in registry.")
                 self._schema_cache[schema_id] = avro_schema.schema
             except Exception as e:
-                raise RuntimeError(f"Failed to retrieve schema {schema_id}: {e}")
+                raise RuntimeError(f"Failed to retrieve schema {schema_id}: {e}") from e
 
         bio = io.BytesIO(payload[5:])
-        return schemaless_reader(bio, self._schema_cache[schema_id])
+        parsed = schemaless_reader(bio, self._schema_cache[schema_id])
+        return cast(dict[str, Any], parsed)
 
     async def listen(self) -> AsyncIterator[CodeChange]:
         if not self.consumer:

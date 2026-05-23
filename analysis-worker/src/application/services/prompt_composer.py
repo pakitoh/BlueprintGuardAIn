@@ -1,16 +1,16 @@
 import structlog
 
-from src.domain.analysis_policy import file_priority, should_skip
-from src.domain.entities import CodeChange, PastFinding
-from src.domain.ports.diff_fetcher import FileDiff
-from src.domain.ports.prompt_repository import PromptRepository
 from src.application.services.prompt_config import (
-    NONE_LISTED_PLACEHOLDER,
     NO_PATCH_PLACEHOLDER,
+    NONE_LISTED_PLACEHOLDER,
     PAST_FINDINGS_HEADER,
     PATCH_BUDGET,
     SIZE_WARNING,
 )
+from src.domain.analysis_policy import file_priority, should_skip
+from src.domain.entities import CodeChange, PastFinding
+from src.domain.ports.diff_fetcher import FileDiff
+from src.domain.ports.prompt_repository import PromptRepository
 
 logger = structlog.get_logger()
 

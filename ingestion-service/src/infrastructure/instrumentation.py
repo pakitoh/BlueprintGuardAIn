@@ -1,24 +1,26 @@
 import logging
 import os
 import subprocess
-import structlog
 import sys
 import time
-from opentelemetry import trace, metrics
-from opentelemetry.sdk._logs import LoggerProvider
-from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
-from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.sdk.metrics import MeterProvider
-from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+from typing import Any
+
+import structlog
+from opentelemetry import metrics, trace
 from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.aiokafka import AIOKafkaInstrumentor
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.logging import LoggingInstrumentor
 from opentelemetry.instrumentation.logging.handler import LoggingHandler
+from opentelemetry.sdk._logs import LoggerProvider
+from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from src.config import settings
@@ -46,7 +48,7 @@ def resolve_commit_sha() -> str:
 class AccessLogMiddleware(BaseHTTPMiddleware):
     """Adds access logging."""
 
-    async def dispatch(self, request, call_next):
+    async def dispatch(self, request: Any, call_next: Any) -> Any:
         init_time = time.perf_counter()
         response = await call_next(request)
         logger.info(
@@ -59,7 +61,7 @@ class AccessLogMiddleware(BaseHTTPMiddleware):
         return response
 
 
-def _add_otel_trace_id(_, __, event_dict):
+def _add_otel_trace_id(_: Any, __: str, event_dict: dict[str, Any]) -> dict[str, Any]:
     """Processor that adds the current OTEL trace_id and span_id to the log event."""
     span = trace.get_current_span()
     if not span.is_recording():
@@ -73,7 +75,7 @@ def _add_otel_trace_id(_, __, event_dict):
 
 
 # Single Source of Truth for Log Formatting
-SHARED_PROCESSORS = [
+SHARED_PROCESSORS: list[Any] = [
     structlog.contextvars.merge_contextvars,
     structlog.stdlib.add_log_level,
     structlog.stdlib.add_logger_name,
@@ -84,7 +86,7 @@ SHARED_PROCESSORS = [
 ]
 
 
-def _setup_logging(resource, app):
+def _setup_logging(resource: Resource, app: Any) -> None:
     """Configures global logging with native OTEL bridge."""
 
     # Configure logging levels
@@ -106,8 +108,8 @@ def _setup_logging(resource, app):
 
     # Configure Structlog
     structlog.configure(
-        processors=SHARED_PROCESSORS
-        + [
+        processors=[
+            *SHARED_PROCESSORS,
             structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
         ],
         logger_factory=structlog.stdlib.LoggerFactory(),
@@ -155,7 +157,7 @@ uvicorn_log_config = {
 }
 
 
-def _setup_tracing(resource):
+def _setup_tracing(resource: Resource) -> None:
     tracer_provider = TracerProvider(resource=resource)
     tracer_provider.add_span_processor(
         BatchSpanProcessor(
@@ -167,7 +169,7 @@ def _setup_tracing(resource):
     trace.set_tracer_provider(tracer_provider)
 
 
-def _setup_metrics(resource):
+def _setup_metrics(resource: Resource) -> None:
     reader = PeriodicExportingMetricReader(
         OTLPMetricExporter(endpoint=settings.otel_exporter_otlp_endpoint, insecure=True)
     )
@@ -185,7 +187,7 @@ def _setup_resource() -> Resource:
     )
 
 
-def instrument_app(app):
+def instrument_app(app: Any) -> None:
     """Sets up network-level observability (Logs, Traces & Metrics)."""
     resource = _setup_resource()
     _setup_logging(resource, app)

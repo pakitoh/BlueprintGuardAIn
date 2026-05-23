@@ -5,9 +5,9 @@ from src.infrastructure.kafka.repository import KafkaCodeChangeRepository
 
 
 class InfrastructureFactory:
-    def __init__(self):
-        self._schema_client = None
-        self._repo = None
+    def __init__(self) -> None:
+        self._schema_client: SchemaRegistryClient | None = None
+        self._repo: KafkaCodeChangeRepository | None = None
 
     @property
     def schema_client(self) -> SchemaRegistryClient:
@@ -22,15 +22,16 @@ class InfrastructureFactory:
         return self._repo
 
     async def start(self) -> None:
-        with open("../schemas/CodeChange.avsc", "r") as f:
+        with open("../schemas/CodeChange.avsc") as f:
             schema_str = f.read()
-        self._repo = KafkaCodeChangeRepository(
+        repo = KafkaCodeChangeRepository(
             bootstrap_servers=settings.kafka_bootstrap_servers,
             topic=settings.webhook_events_topic,
             schema_client=self.schema_client,
             schema_str=schema_str,
         )
-        await self._repo.start()
+        await repo.start()
+        self._repo = repo
 
     async def stop(self) -> None:
         if self._repo:

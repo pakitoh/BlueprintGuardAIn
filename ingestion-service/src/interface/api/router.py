@@ -1,12 +1,12 @@
-from fastapi import APIRouter, Header, Depends, HTTPException, Request
 import structlog
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 
-from src.interface.api.dto import GithubWebhookDTO
 from src.application.use_cases.process_webhook import ProcessWebhookUseCase
 from src.domain.exceptions import MappingError
 from src.infrastructure.tracing.instrumented_process_webhook import (
     InstrumentedProcessWebhookUseCase,
 )
+from src.interface.api.dto import GithubWebhookDTO
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -21,12 +21,12 @@ def get_process_webhook_use_case(request: Request) -> ProcessWebhookUseCase:
 
 
 @router.get("/health")
-async def health():
+async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
 @router.get("/version")
-async def version(request: Request):
+async def version(request: Request) -> dict[str, str]:
     return {"service": "ingestion-service", "version": request.app.state.version}
 
 
@@ -35,14 +35,14 @@ async def github_webhook(
     event: GithubWebhookDTO,
     x_github_event: str = Header(...),
     use_case: ProcessWebhookUseCase = Depends(get_process_webhook_use_case),
-):
+) -> dict[str, str]:
     payload = event.model_dump(exclude_unset=True)
     try:
         await use_case.execute(payload, event_type=x_github_event)
     except MappingError as e:
         logger.warning("webhook_processing_failed", error=str(e))
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         logger.error("unexpected_error", error=str(e))
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(status_code=500, detail="Internal server error") from e
     return {"status": "accepted"}

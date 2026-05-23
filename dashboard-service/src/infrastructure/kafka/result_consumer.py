@@ -1,8 +1,11 @@
+import asyncio
 import io
 import struct
-import asyncio
-import structlog
+from collections.abc import Awaitable, Callable
 from datetime import datetime
+from typing import Any, cast
+
+import structlog
 from aiokafka import AIOKafkaConsumer
 from fastavro import schemaless_reader
 from schema_registry.client import SchemaRegistryClient
@@ -25,18 +28,25 @@ class KafkaResultConsumer:
         self._topic = topic
         self._group_id = group_id
         self._schema_client = schema_client
-        self._consumer = None
-        self._schema_cache: dict = {}
-        self._task = None
+        self._consumer: AIOKafkaConsumer | None = None
+        self._schema_cache: dict[int, Any] = {}
+        self._task: asyncio.Task[None] | None = None
+        self._on_result: Callable[[AnalysisRecord], Awaitable[None]] | None = None
 
-    async def start(self, repo: AnalysisRepository) -> None:
-        self._consumer = AIOKafkaConsumer(
+    async def start(
+        self,
+        repo: AnalysisRepository,
+        on_result: Callable[[AnalysisRecord], Awaitable[None]] | None = None,
+    ) -> None:
+        self._on_result = on_result
+        consumer = AIOKafkaConsumer(
             self._topic,
             bootstrap_servers=self._bootstrap_servers,
             group_id=self._group_id,
             auto_offset_reset="latest",
         )
-        await self._consumer.start()
+        await consumer.start()
+        self._consumer = consumer
         self._task = asyncio.create_task(self._consume(repo))
         logger.debug("result_consumer_started")
 
@@ -46,21 +56,26 @@ class KafkaResultConsumer:
         if self._consumer:
             await self._consumer.stop()
 
-    def _deserialize(self, payload: bytes) -> dict:
-        magic, schema_id = struct.unpack(">bi", payload[:5])
+    def _deserialize(self, payload: bytes) -> dict[str, Any]:
+        _magic, schema_id = struct.unpack(">bi", payload[:5])
         if schema_id not in self._schema_cache:
             schema = self._schema_client.get_by_id(schema_id)
+            if schema is None:
+                raise RuntimeError(f"Schema {schema_id} not found in registry.")
             self._schema_cache[schema_id] = schema.schema
-        return schemaless_reader(io.BytesIO(payload[5:]), self._schema_cache[schema_id])
+        bio = io.BytesIO(payload[5:])
+        parsed = schemaless_reader(bio, self._schema_cache[schema_id])
+        return cast(dict[str, Any], parsed)
 
     async def _consume(self, repo: AnalysisRepository) -> None:
+        assert self._consumer is not None
         async for msg in self._consumer:
             try:
                 await self._process_message(msg, repo)
             except Exception as e:
                 logger.error("result_consumption_failed", error=str(e))
 
-    async def _process_message(self, msg, repo: AnalysisRepository) -> None:
+    async def _process_message(self, msg: Any, repo: AnalysisRepository) -> None:
         data = self._deserialize(msg.value)
         record = await repo.get_by_repo_sha(data["repository"], data["sha"])
         if record:
@@ -77,6 +92,8 @@ class KafkaResultConsumer:
             }
         )
         await repo.update(updated)
+        if self._on_result:
+            await self._on_result(updated)
         logger.info(
             "analysis_completed", id=record.id, findings=len(data.get("findings", []))
         )

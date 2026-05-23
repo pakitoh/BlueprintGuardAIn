@@ -21,6 +21,7 @@ class PostgresReplayProgressRepository(ReplayProgressRepository):
             await self._pool.close()
 
     async def get(self, repository: str) -> ReplayProgress | None:
+        assert self._pool is not None
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(
                 "SELECT * FROM replay_progress WHERE repository = $1", repository
@@ -35,10 +36,12 @@ class PostgresReplayProgressRepository(ReplayProgressRepository):
         )
 
     async def save(self, progress: ReplayProgress) -> None:
+        assert self._pool is not None
         async with self._pool.acquire() as conn:
             await conn.execute(
                 """
-                INSERT INTO replay_progress (repository, last_page, current_page, page_index)
+                INSERT INTO replay_progress
+                    (repository, last_page, current_page, page_index)
                 VALUES ($1, $2, $3, $4)
                 ON CONFLICT (repository) DO UPDATE
                 SET last_page = $2, current_page = $3, page_index = $4

@@ -1,14 +1,15 @@
+
 import structlog
-from typing import List
+
 from src.domain.entities import AnalysisResult
-from src.domain.ports.analysis_result_source import AnalysisResultSource
 from src.domain.ports.action_port import ActionPort
+from src.domain.ports.analysis_result_source import AnalysisResultSource
 
 logger = structlog.get_logger()
 
 
 class ProcessAnalysisResultUseCase:
-    def __init__(self, source: AnalysisResultSource, actions: List[ActionPort]):
+    def __init__(self, source: AnalysisResultSource, actions: list[ActionPort]):
         self._source = source
         self._actions = actions
 

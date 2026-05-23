@@ -6,9 +6,9 @@ from src.application.use_cases.process_analysis_result import (
 )
 from src.domain.entities import AnalysisResult
 from src.infrastructure.metrics import (
-    results_processed,
     action_duration,
     pipeline_duration,
+    results_processed,
 )
 from src.infrastructure.tracing.decorators import traced
 

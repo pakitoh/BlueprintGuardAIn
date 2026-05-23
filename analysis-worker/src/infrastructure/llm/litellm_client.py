@@ -1,15 +1,18 @@
 import time
+from typing import Any
+
 import litellm
 import structlog
-from litellm import Router
-from litellm import (
+from litellm import (  # type: ignore[attr-defined]
     APIConnectionError,
     BadGatewayError,
     InternalServerError,
+    Router,
     ServiceUnavailableError,
     Timeout,
 )
 from tenacity import (
+    RetryCallState,
     retry,
     retry_if_exception_type,
     stop_after_attempt,
@@ -37,6 +40,12 @@ from src.infrastructure.metrics import (
 
 logger = structlog.get_logger()
 
+
+def _log_llm_retry(rs: RetryCallState) -> None:
+    err: Any = rs.outcome.exception() if rs.outcome is not None else None
+    logger.warning("llm_retry", attempt=rs.attempt_number, error=str(err))
+
+
 _LLM_RETRYABLE = (
     ServiceUnavailableError,
     APIConnectionError,
@@ -59,11 +68,12 @@ class LiteLLMClient(LLMClient):
                 "model_name": name,
                 "litellm_params": {"model": model, "api_key": api_key},
             }
-            for name, (model, api_key) in zip(names, configs)
+            for name, (model, api_key) in zip(names, configs, strict=True)
         ]
+        fallbacks: list[Any] = [{names[0]: names[1:]}] if len(names) > 1 else []
         return Router(
             model_list=model_list,
-            fallbacks=[{names[0]: names[1:]}] if len(names) > 1 else None,
+            fallbacks=fallbacks,
             timeout=LLM_TIMEOUT,
         )
 
@@ -77,9 +87,7 @@ class LiteLLMClient(LLMClient):
         ),
         retry=retry_if_exception_type(_LLM_RETRYABLE),
         reraise=True,
-        before_sleep=lambda rs: logger.warning(
-            "llm_retry", attempt=rs.attempt_number, error=str(rs.outcome.exception())
-        ),
+        before_sleep=_log_llm_retry,
     )
     async def call(self, prompt: str) -> LLMResponse:
         start = time.perf_counter()
@@ -88,8 +96,8 @@ class LiteLLMClient(LLMClient):
             messages=[{"role": "user", "content": prompt}],
         )
         latency = time.perf_counter() - start
-        content = response.choices[0].message.content
-        usage = response.usage
+        content: str = response.choices[0].message.content or ""
+        usage = response.usage  # type: ignore[attr-defined]
         prompt_tokens = usage.prompt_tokens if usage else 0
         completion_tokens = usage.completion_tokens if usage else 0
         try:

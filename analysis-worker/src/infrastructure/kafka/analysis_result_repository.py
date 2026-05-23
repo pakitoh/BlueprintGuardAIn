@@ -1,15 +1,17 @@
-import json
 import io
+import json
 import struct
-import structlog
 from dataclasses import asdict
+from typing import Any
+
+import structlog
 from aiokafka import AIOKafkaProducer
-from schema_registry.client import SchemaRegistryClient
 from fastavro import schemaless_writer
+from schema_registry.client import SchemaRegistryClient
 
 from src.domain.entities import AnalysisResult
-from src.domain.ports.analysis_result_repository import AnalysisResultRepository
 from src.domain.exceptions import RepositoryError
+from src.domain.ports.analysis_result_repository import AnalysisResultRepository
 
 logger = structlog.get_logger()
 
@@ -26,25 +28,26 @@ class KafkaAnalysisResultRepository(AnalysisResultRepository):
         self.topic = topic
         self.schema_client = schema_client
         self.schema_str = schema_str
-        self.producer = None  # Created in start()
-        self._schema_id = None
-        self._parsed_schema = None
+        self.producer: AIOKafkaProducer | None = None  # Created in start()
+        self._schema_id: int | None = None
+        self._parsed_schema: Any = None
 
     async def start(self) -> None:
         """Initializes and starts the underlying Kafka producer."""
         try:
-            self.producer = AIOKafkaProducer(bootstrap_servers=self.bootstrap_servers)
-            await self.producer.start()
+            producer = AIOKafkaProducer(bootstrap_servers=self.bootstrap_servers)
+            await producer.start()
+            self.producer = producer
             logger.debug("kafka_producer_started")
         except Exception as e:
-            raise RepositoryError(f"Failed to start Kafka producer: {e}")
+            raise RepositoryError(f"Failed to start Kafka producer: {e}") from e
 
     async def stop(self) -> None:
         if self.producer:
             await self.producer.stop()
             logger.debug("kafka_producer_stopped")
 
-    def _ensure_schema_registered(self):
+    def _ensure_schema_registered(self) -> None:
         if self._schema_id is not None:
             return
 
@@ -53,7 +56,7 @@ class KafkaAnalysisResultRepository(AnalysisResultRepository):
             self._schema_id = self.schema_client.register(subject, self.schema_str)
             self._parsed_schema = json.loads(self.schema_str)
         except Exception as e:
-            raise RepositoryError(f"Failed to register Avro schema: {e}")
+            raise RepositoryError(f"Failed to register Avro schema: {e}") from e
 
     def _serialize_avro(self, data: dict) -> bytes:
         try:
@@ -63,7 +66,7 @@ class KafkaAnalysisResultRepository(AnalysisResultRepository):
             schemaless_writer(out, self._parsed_schema, data)
             return out.getvalue()
         except Exception as e:
-            raise RepositoryError(f"Avro serialization failed: {e}")
+            raise RepositoryError(f"Avro serialization failed: {e}") from e
 
     async def save(self, result: AnalysisResult) -> None:
         if not self.producer:

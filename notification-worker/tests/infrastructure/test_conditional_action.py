@@ -1,7 +1,9 @@
-import pytest
 from unittest.mock import AsyncMock
-from src.infrastructure.actions.conditional_action import ConditionalAction
+
+import pytest
+
 from src.domain.entities import AnalysisResult
+from src.infrastructure.actions.conditional_action import ConditionalAction
 
 
 def a_result(status="FAILED") -> AnalysisResult:

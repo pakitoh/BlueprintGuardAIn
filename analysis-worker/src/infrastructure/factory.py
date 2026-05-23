@@ -1,30 +1,30 @@
 from schema_registry.client import SchemaRegistryClient
 
-from src.config import settings
 from src.application.services.finding_parser import FindingParser
 from src.application.services.findings_validator import FindingsValidator
 from src.application.services.llm_code_analyzer import LLMCodeAnalyzer
 from src.application.services.prompt_composer import PromptComposer
+from src.config import settings
 from src.infrastructure.github.github_diff_fetcher import GitHubDiffFetcher
 from src.infrastructure.instrumentation import flush_langfuse
-from src.infrastructure.langfuse.prompt_repository import LangfusePromptRepository
 from src.infrastructure.kafka.analysis_result_repository import (
     KafkaAnalysisResultRepository,
 )
 from src.infrastructure.kafka.code_change_source import KafkaCodeChangeSource
+from src.infrastructure.langfuse.prompt_repository import LangfusePromptRepository
 from src.infrastructure.llm.litellm_client import LiteLLMClient
 from src.infrastructure.llm.litellm_embedder import LiteLLMEmbedder
 from src.infrastructure.pgvector.pgvector_findings_store import PgVectorFindingsStore
 
 
 class InfrastructureFactory:
-    def __init__(self):
-        self._schema_client = None
-        self._source = None
-        self._sink = None
-        self._analyzer = None
-        self._embedder = None
-        self._findings_store = None
+    def __init__(self) -> None:
+        self._schema_client: SchemaRegistryClient | None = None
+        self._source: KafkaCodeChangeSource | None = None
+        self._sink: KafkaAnalysisResultRepository | None = None
+        self._analyzer: LLMCodeAnalyzer | None = None
+        self._embedder: LiteLLMEmbedder | None = None
+        self._findings_store: PgVectorFindingsStore | None = None
 
     @property
     def schema_client(self) -> SchemaRegistryClient:
@@ -73,7 +73,7 @@ class InfrastructureFactory:
             group_id=settings.consumer_group_id,
             schema_client=self.schema_client,
         )
-        with open("../schemas/AnalysisResult.avsc", "r") as f:
+        with open("../schemas/AnalysisResult.avsc") as f:
             schema_str = f.read()
         self._sink = KafkaAnalysisResultRepository(
             bootstrap_servers=settings.kafka_bootstrap_servers,

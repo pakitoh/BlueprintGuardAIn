@@ -5,9 +5,9 @@ from src.infrastructure.kafka.analysis_result_source import KafkaAnalysisResultS
 
 
 class InfrastructureFactory:
-    def __init__(self):
-        self._schema_client = None
-        self._source = None
+    def __init__(self) -> None:
+        self._schema_client: SchemaRegistryClient | None = None
+        self._source: KafkaAnalysisResultSource | None = None
 
     @property
     def schema_client(self) -> SchemaRegistryClient:
@@ -22,13 +22,14 @@ class InfrastructureFactory:
         return self._source
 
     async def start(self) -> None:
-        self._source = KafkaAnalysisResultSource(
+        source = KafkaAnalysisResultSource(
             bootstrap_servers=settings.kafka_bootstrap_servers,
             topic=settings.results_topic,
             group_id=settings.consumer_group_id,
             schema_client=self.schema_client,
         )
-        await self._source.start()
+        await source.start()
+        self._source = source
 
     async def stop(self) -> None:
         if self._source:

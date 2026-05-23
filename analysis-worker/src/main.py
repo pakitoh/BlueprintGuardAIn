@@ -1,8 +1,9 @@
 import asyncio
+
 import structlog
 
-from src.infrastructure.instrumentation import instrument_app, resolve_commit_sha
 from src.infrastructure.factory import InfrastructureFactory
+from src.infrastructure.instrumentation import instrument_app, resolve_commit_sha
 from src.infrastructure.tracing.instrumented_analyze_code_change import (
     InstrumentedAnalyzeCodeChangeUseCase,
 )
@@ -10,7 +11,7 @@ from src.infrastructure.tracing.instrumented_analyze_code_change import (
 logger = structlog.get_logger()
 
 
-async def run_worker():
+async def run_worker() -> None:
     instrument_app()
     version = resolve_commit_sha()
 

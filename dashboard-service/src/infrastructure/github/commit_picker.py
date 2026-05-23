@@ -1,5 +1,6 @@
 import random
 import re
+
 import httpx
 import structlog
 
@@ -219,5 +220,6 @@ async def pick_random_commit(token: str) -> tuple[str, str, str]:
                 return repo, sha, message
 
     raise RuntimeError(
-        f"No commit with >= {MIN_FILES} files found in {repo} after {MAX_PICK_ATTEMPTS} attempts"
+        f"No commit with >= {MIN_FILES} files found in {repo} "
+        f"after {MAX_PICK_ATTEMPTS} attempts"
     )

@@ -1,5 +1,6 @@
 from dataclasses import dataclass
-from typing import Dict, Any
+from typing import Any
+
 from src.domain.exceptions import MappingError
 
 
@@ -11,9 +12,9 @@ class CodeChange:
     ref: str
     target_sha: str
     event_type: str
-    raw_payload: Dict[str, Any]
+    raw_payload: dict[str, Any]
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not self.repository:
             raise MappingError("Repository cannot be empty")
         if not self.target_sha:
@@ -22,7 +23,7 @@ class CodeChange:
             raise MappingError("Event type cannot be empty")
 
     @classmethod
-    def from_push_event(cls, payload: Dict[str, Any]) -> "CodeChange":
+    def from_push_event(cls, payload: dict[str, Any]) -> "CodeChange":
         """Factory method to create a CodeChange from a GitHub push event."""
         try:
             return cls(
@@ -33,10 +34,10 @@ class CodeChange:
                 raw_payload=payload,
             )
         except KeyError as e:
-            raise MappingError(f"Missing required field in push event: {e}")
+            raise MappingError(f"Missing required field in push event: {e}") from e
 
     @classmethod
-    def from_pull_request_event(cls, payload: Dict[str, Any]) -> "CodeChange":
+    def from_pull_request_event(cls, payload: dict[str, Any]) -> "CodeChange":
         """Factory method to create a CodeChange from a GitHub pull request event."""
         try:
             return cls(
@@ -47,4 +48,6 @@ class CodeChange:
                 raw_payload=payload,
             )
         except KeyError as e:
-            raise MappingError(f"Missing required field in pull request event: {e}")
+            raise MappingError(
+                f"Missing required field in pull request event: {e}"
+            ) from e

@@ -1,8 +1,11 @@
+from src.application.use_cases.trigger_analysis import (
+    _create_pending_record,
+    _send_webhook,
+)
 from src.domain.entities import AnalysisRecord
 from src.domain.ports.analysis_repository import AnalysisRepository
 from src.domain.ports.replay_progress_repository import ReplayProgressRepository
 from src.infrastructure.github.commit_picker import fetch_next_chronological_commit
-from src.application.use_cases.trigger_analysis import _send_webhook, _create_pending_record
 
 
 async def trigger_replay(

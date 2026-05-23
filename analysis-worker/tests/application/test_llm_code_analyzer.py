@@ -1,13 +1,14 @@
-import pytest
 from unittest.mock import AsyncMock
 
-from src.domain.entities import CodeChange, LLMResponse
-from src.domain.ports.diff_fetcher import FileDiff
-from src.domain.ports.prompt_repository import PromptRepository
+import pytest
+
 from src.application.services.finding_parser import FindingParser
 from src.application.services.findings_validator import FindingsValidator
 from src.application.services.llm_code_analyzer import LLMCodeAnalyzer
 from src.application.services.prompt_composer import PromptComposer
+from src.domain.entities import CodeChange, LLMResponse
+from src.domain.ports.diff_fetcher import FileDiff
+from src.domain.ports.prompt_repository import PromptRepository
 
 
 class StubPromptRepository(PromptRepository):

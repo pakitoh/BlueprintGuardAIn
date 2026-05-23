@@ -1,8 +1,11 @@
 import asyncio
 import time
-import structlog
+from collections.abc import Callable
 from enum import Enum
 from functools import wraps
+from typing import Any
+
+import structlog
 
 logger = structlog.get_logger()
 
@@ -54,12 +57,12 @@ class _CircuitBreakerState:
                 self.state = _State.OPEN
 
 
-def circuit_breaker(failure_threshold: int, reset_timeout: float):
-    def decorator(fn):
+def circuit_breaker(failure_threshold: int, reset_timeout: float) -> Callable[..., Any]:
+    def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
         state_attr = f"_cb_{fn.__name__}"
 
         @wraps(fn)
-        async def wrapper(self, *args, **kwargs):
+        async def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
             if not hasattr(self, state_attr):
                 setattr(
                     self,
