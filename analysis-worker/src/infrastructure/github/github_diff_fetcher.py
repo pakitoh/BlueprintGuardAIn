@@ -1,9 +1,6 @@
-from typing import Any
-
 import httpx
 import structlog
 from tenacity import (
-    RetryCallState,
     retry,
     retry_if_exception,
     stop_after_attempt,
@@ -18,13 +15,9 @@ from src.infrastructure.github.github_config import (
     GITHUB_WAIT_MIN,
     GITHUB_WAIT_MULTIPLIER,
 )
+from src.infrastructure.retry_logging import make_retry_logger
 
 logger = structlog.get_logger()
-
-
-def _log_github_retry(rs: RetryCallState) -> None:
-    err: Any = rs.outcome.exception() if rs.outcome is not None else None
-    logger.warning("github_retry", attempt=rs.attempt_number, error=str(err))
 
 
 def _is_retryable_github_error(exc: BaseException) -> bool:
@@ -43,6 +36,15 @@ class GitHubDiffFetcher(DiffFetcher):
         if token:
             self._headers["Authorization"] = f"Bearer {token}"
 
+    async def fetch(self, repository: str, sha: str) -> list[FileDiff]:
+        try:
+            return await self._fetch(repository, sha)
+        except Exception as e:
+            logger.warning(
+                "diff_fetch_failed", repository=repository, sha=sha, error=str(e)
+            )
+            return []
+
     @retry(
         stop=stop_after_attempt(GITHUB_MAX_ATTEMPTS),
         wait=wait_exponential(
@@ -50,35 +52,29 @@ class GitHubDiffFetcher(DiffFetcher):
         ),
         retry=retry_if_exception(_is_retryable_github_error),
         reraise=True,
-        before_sleep=_log_github_retry,
+        before_sleep=make_retry_logger("github_retry"),
     )
-    async def fetch(self, repository: str, sha: str) -> list[FileDiff]:
-        try:
-            url = f"{self._BASE}/repos/{repository}/commits/{sha}"
-            async with httpx.AsyncClient() as client:
-                resp = await client.get(
-                    url,
-                    headers=self._headers,
-                    timeout=GITHUB_TIMEOUT,
-                    follow_redirects=True,
-                )
-                resp.raise_for_status()
-            logger.debug(
-                "github_diff_fetched",
-                repository=repository,
-                sha=sha,
-                files=len(resp.json().get("files", [])),
+    async def _fetch(self, repository: str, sha: str) -> list[FileDiff]:
+        url = f"{self._BASE}/repos/{repository}/commits/{sha}"
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                url,
+                headers=self._headers,
+                timeout=GITHUB_TIMEOUT,
+                follow_redirects=True,
             )
-            return [
-                FileDiff(
-                    filename=f["filename"],
-                    status=f["status"],
-                    patch=f.get("patch", ""),
-                )
-                for f in resp.json().get("files", [])
-            ]
-        except Exception as e:
-            logger.warning(
-                "diff_fetch_failed", repository=repository, sha=sha, error=str(e)
+            resp.raise_for_status()
+        logger.debug(
+            "github_diff_fetched",
+            repository=repository,
+            sha=sha,
+            files=len(resp.json().get("files", [])),
+        )
+        return [
+            FileDiff(
+                filename=f["filename"],
+                status=f["status"],
+                patch=f.get("patch", ""),
             )
-            return []
+            for f in resp.json().get("files", [])
+        ]

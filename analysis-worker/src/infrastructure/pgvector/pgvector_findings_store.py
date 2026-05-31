@@ -1,9 +1,8 @@
 import time
-from typing import Any
 
 import asyncpg
 import structlog
-from tenacity import RetryCallState, retry, stop_after_attempt, wait_exponential
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 from src.domain.entities import CodeChange, PastFinding
 from src.domain.ports.diff_fetcher import FileDiff
@@ -16,13 +15,9 @@ from src.infrastructure.pgvector.pgvector_config import (
     EMBED_WAIT_MIN,
     EMBED_WAIT_MULTIPLIER,
 )
+from src.infrastructure.retry_logging import make_retry_logger
 
 logger = structlog.get_logger()
-
-
-def _log_embed_retry(rs: RetryCallState) -> None:
-    err: Any = rs.outcome.exception() if rs.outcome is not None else None
-    logger.warning("embed_retry", attempt=rs.attempt_number, error=str(err))
 
 
 _LAYER_KEYWORDS = {
@@ -75,6 +70,10 @@ def _to_embedding_text(
     return "\n".join(lines) or f"event={change.event_type} ref={change.ref}"
 
 
+def _to_vector_literal(vector: list[float]) -> str:
+    return "[" + ",".join(str(v) for v in vector) + "]"
+
+
 class PgVectorFindingsStore(FindingsStore):
     def __init__(self, dsn: str, embedder: Embedder):
         self._dsn = dsn
@@ -87,7 +86,7 @@ class PgVectorFindingsStore(FindingsStore):
             multiplier=EMBED_WAIT_MULTIPLIER, min=EMBED_WAIT_MIN, max=EMBED_WAIT_MAX
         ),
         reraise=True,
-        before_sleep=_log_embed_retry,
+        before_sleep=make_retry_logger("embed_retry"),
     )
     async def _embed(self, text: str) -> list[float]:
         return await self._embedder.embed(text)
@@ -101,6 +100,13 @@ class PgVectorFindingsStore(FindingsStore):
             await self._pool.close()
             logger.debug("pgvector_pool_closed")
 
+    async def _embed_change(
+        self, change: CodeChange, file_diffs: list[FileDiff] | None
+    ) -> tuple[str, str]:
+        text = _to_embedding_text(change, file_diffs)
+        vector = await self._embed(text)
+        return text, _to_vector_literal(vector)
+
     async def find_similar(
         self,
         change: CodeChange,
@@ -108,37 +114,38 @@ class PgVectorFindingsStore(FindingsStore):
         file_diffs: list[FileDiff] | None = None,
     ) -> list[PastFinding]:
         try:
-            text = _to_embedding_text(change, file_diffs)
-            vector = await self._embed(text)
-            vector_literal = "[" + ",".join(str(v) for v in vector) + "]"
-
-            start = time.perf_counter()
-            rows = await self._pool.fetch(  # type: ignore[union-attr]
-                """
-                SELECT rule_text, context
-                FROM   past_findings
-                ORDER  BY embedding <=> $1::vector
-                LIMIT  $2
-                """,
-                vector_literal,
-                limit,
-            )
-            rag_retrieval_duration.record(time.perf_counter() - start)
-            findings = [
-                PastFinding(rule_text=r["rule_text"], context=r["context"])
-                for r in rows
-            ]
-            rag_similar_count.record(len(findings))
-            if findings:
-                logger.info(
-                    "rag_examples_found",
-                    count=len(findings),
-                    rules=[f.rule_text for f in findings],
-                )
-            return findings
+            _, vector_literal = await self._embed_change(change, file_diffs)
+            return await self._query_similar(vector_literal, limit)
         except Exception as e:
             logger.warning("findings_store_unavailable", error=str(e))
             return []
+
+    async def _query_similar(
+        self, vector_literal: str, limit: int
+    ) -> list[PastFinding]:
+        start = time.perf_counter()
+        rows = await self._pool.fetch(  # type: ignore[union-attr]
+            """
+            SELECT rule_text, context
+            FROM   past_findings
+            ORDER  BY embedding <=> $1::vector
+            LIMIT  $2
+            """,
+            vector_literal,
+            limit,
+        )
+        rag_retrieval_duration.record(time.perf_counter() - start)
+        findings = [
+            PastFinding(rule_text=r["rule_text"], context=r["context"]) for r in rows
+        ]
+        rag_similar_count.record(len(findings))
+        if findings:
+            logger.info(
+                "rag_examples_found",
+                count=len(findings),
+                rules=[f.rule_text for f in findings],
+            )
+        return findings
 
     async def save(
         self,
@@ -149,19 +156,26 @@ class PgVectorFindingsStore(FindingsStore):
         if not findings:
             return
         try:
-            text = _to_embedding_text(change, file_diffs)
-            vector = await self._embed(text)
-            vector_literal = "[" + ",".join(str(v) for v in vector) + "]"
-            combined = "\n".join(findings)
-            await self._pool.execute(  # type: ignore[union-attr]
-                """
-                INSERT INTO past_findings (rule_text, context, embedding)
-                VALUES ($1, $2, $3::vector)
-                """,
-                combined,
-                text,
-                vector_literal,
-            )
-            logger.debug("past_finding_saved", repository=change.repository)
+            text, vector_literal = await self._embed_change(change, file_diffs)
+            await self._insert_finding(change, findings, text, vector_literal)
         except Exception as e:
             logger.warning("findings_save_failed", error=str(e))
+
+    async def _insert_finding(
+        self,
+        change: CodeChange,
+        findings: list[str],
+        text: str,
+        vector_literal: str,
+    ) -> None:
+        combined = "\n".join(findings)
+        await self._pool.execute(  # type: ignore[union-attr]
+            """
+            INSERT INTO past_findings (rule_text, context, embedding)
+            VALUES ($1, $2, $3::vector)
+            """,
+            combined,
+            text,
+            vector_literal,
+        )
+        logger.debug("past_finding_saved", repository=change.repository)
