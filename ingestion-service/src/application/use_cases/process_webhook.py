@@ -3,7 +3,7 @@ from typing import Any
 import structlog
 
 from src.domain.entities.code_change import CodeChange
-from src.domain.exceptions import MappingError
+from src.domain.exceptions import UnsupportedEventError
 from src.domain.ports.repository import CodeChangeRepository
 
 logger = structlog.get_logger()
@@ -20,7 +20,7 @@ class ProcessWebhookUseCase:
         elif event_type == "pull_request":
             change = CodeChange.from_pull_request_event(payload)
         else:
-            raise MappingError(f"Unsupported event type: {event_type}")
+            raise UnsupportedEventError(f"Unsupported event type: {event_type}")
         await self.repository.save(change)
         logger.info(
             "webhook_processed_successfully",

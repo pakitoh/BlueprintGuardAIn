@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from src.application.use_cases.process_webhook import ProcessWebhookUseCase
-from src.domain.exceptions import MappingError
+from src.domain.exceptions import MappingError, UnsupportedEventError
 from src.domain.ports.repository import CodeChangeRepository
 
 # --- Helpers ---
@@ -131,22 +131,22 @@ async def test_pr_raises_on_malformed_payload():
 
 
 @pytest.mark.asyncio
-async def test_unsupported_event_raises_mapping_error():
+async def test_unsupported_event_raises_unsupported_event_error():
     use_case, _mock_repo = a_use_case()
-    with pytest.raises(MappingError):
+    with pytest.raises(UnsupportedEventError):
         await use_case.execute({}, event_type="star")
 
 
 @pytest.mark.asyncio
 async def test_unsupported_event_names_the_bad_type():
     use_case, _mock_repo = a_use_case()
-    with pytest.raises(MappingError, match="star"):
+    with pytest.raises(UnsupportedEventError, match="star"):
         await use_case.execute({}, event_type="star")
 
 
 @pytest.mark.asyncio
 async def test_unsupported_event_does_not_call_save():
     use_case, mock_repo = a_use_case()
-    with pytest.raises(MappingError):
+    with pytest.raises(UnsupportedEventError):
         await use_case.execute({}, event_type="star")
     mock_repo.save.assert_not_called()

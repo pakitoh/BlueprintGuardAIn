@@ -5,7 +5,7 @@ import json
 import pytest
 
 from src.config import settings
-from src.domain.exceptions import MappingError
+from src.domain.exceptions import MappingError, UnsupportedEventError
 from tests.conftest import WEBHOOK_TEST_SECRET
 
 
@@ -56,6 +56,14 @@ async def test_webhook_returns_400_on_mapping_error(client, mock_use_case):
     mock_use_case.execute.side_effect = MappingError("bad payload")
     response = _post(client, a_push_payload())
     assert response.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_webhook_returns_204_on_unsupported_event(client, mock_use_case):
+    mock_use_case.execute.side_effect = UnsupportedEventError("Unsupported: ping")
+    response = _post(client, a_push_payload(), event="ping")
+    assert response.status_code == 204
+    assert response.content == b""
 
 
 @pytest.mark.asyncio
