@@ -2,7 +2,7 @@ import hashlib
 import hmac
 import json
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 import httpx
 import structlog
@@ -69,7 +69,7 @@ async def _create_pending_record(
         repository=repository,
         sha=sha,
         status="PENDING",
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(UTC),
     )
     await repo.save(record)
     logger.info("analysis_triggered", id=record.id, repo=repository, sha=sha[:7])

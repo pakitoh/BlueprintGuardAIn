@@ -10,7 +10,7 @@ class Settings(BaseSettings):
 
     ingestion_url: str = "http://localhost:8000/webhooks/github"
     # Shared HMAC secret used to sign webhooks sent to ingestion-service
-    webhook_secret: str = ""
+    webhook_secret: str = "default_secret"
     kafka_bootstrap_servers: str = "localhost:9094"
     results_topic: str = "analysis-results"
     consumer_group_id: str = "dashboard-service"

@@ -2,7 +2,7 @@ import asyncio
 import io
 import struct
 from collections.abc import Awaitable, Callable
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, cast
 
 import structlog
@@ -88,7 +88,7 @@ class KafkaResultConsumer:
             update={
                 "status": data["status"],
                 "findings": data.get("findings", []),
-                "completed_at": datetime.utcnow(),
+                "completed_at": datetime.now(UTC),
             }
         )
         await repo.update(updated)

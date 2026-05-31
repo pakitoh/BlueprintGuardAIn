@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     webhook_events_topic: str = "webhook-events"
 
     # Security — HMAC secret shared with GitHub for X-Hub-Signature-256
-    webhook_secret: str = ""
+    webhook_secret: str = "default_secret"
 
     model_config = SettingsConfigDict(
         env_file=".env",
