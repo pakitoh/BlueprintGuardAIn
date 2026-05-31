@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 
@@ -10,7 +10,7 @@ class CodeChange:
     target_sha: str
     event_type: str
     raw_payload: dict[str, Any]
-    timestamp: datetime = field(default_factory=datetime.now)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
 @dataclass(frozen=True)
@@ -34,5 +34,5 @@ class AnalysisResult:
     sha: str
     status: str  # e.g., "COMPLETED", "FAILED"
     findings: list[str]
-    timestamp: datetime = field(default_factory=datetime.now)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
     ingested_at: datetime | None = None
