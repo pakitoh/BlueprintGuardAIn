@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     schema_registry_url: str = "http://localhost:8081"
     webhook_events_topic: str = "webhook-events"
 
+    # Security — HMAC secret shared with GitHub for X-Hub-Signature-256
+    github_webhook_secret: str = ""
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

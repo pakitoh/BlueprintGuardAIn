@@ -1,53 +1,109 @@
-REPOSITORY = "user/project"
-SHA = "sha123abc"
-REF = "refs/heads/main"
-EVENT_TYPE = "push"
+import hashlib
+import hmac
+import json
+
+import pytest
+
+from src.config import settings
+from src.domain.exceptions import MappingError
+from tests.conftest import WEBHOOK_TEST_SECRET
 
 
-def test_webhook_endpoint_success(client, mock_use_case):
-    payload = {
-        "ref": REF,
-        "after": SHA,
+def a_push_payload():
+    return {
+        "ref": "refs/heads/main",
+        "after": "d4e5f6g7h8",
         "repository": {
-            "full_name": REPOSITORY,
-            "html_url": f"https://github.com/{REPOSITORY}",
+            "full_name": "paco/blueprint-guardain",
+            "html_url": "https://github.com/paco/blueprint-guardain",
         },
-        "commits": [
-            {
-                "id": SHA,
-                "message": "Add feature",
-                "added": ["src/new.py"],
-                "modified": ["src/existing.py"],
-                "removed": [],
-            }
-        ],
     }
-    headers = {"X-GitHub-Event": EVENT_TYPE}
 
-    response = client.post("/webhooks/github", json=payload, headers=headers)
 
+def _sign(body: bytes, secret: str = WEBHOOK_TEST_SECRET) -> str:
+    return "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+
+
+def _post(client, payload, event="push", signature="valid"):
+    """Post a webhook. signature: "valid" signs the body, "bad" sends a wrong
+    signature, None omits the header entirely."""
+    body = json.dumps(payload).encode()
+    headers = {"X-GitHub-Event": event}
+    if signature == "valid":
+        headers["X-Hub-Signature-256"] = _sign(body)
+    elif signature == "bad":
+        headers["X-Hub-Signature-256"] = "sha256=deadbeef"
+    return client.post("/webhooks/github", content=body, headers=headers)
+
+
+@pytest.mark.asyncio
+async def test_webhook_returns_202_on_success(client, mock_use_case):
+    response = _post(client, a_push_payload())
     assert response.status_code == 202
-    assert response.json() == {"status": "accepted"}
-    called_payload = mock_use_case.execute.call_args[0][0]
-    assert called_payload["commits"][0]["added"] == ["src/new.py"]
-    assert called_payload["commits"][0]["modified"] == ["src/existing.py"]
+    mock_use_case.execute.assert_awaited_once()
 
 
-def test_webhook_endpoint_unsupported_event(client, mock_use_case):
-    # Make the use case raise MappingError to simulate unsupported event logic
-    from src.domain.exceptions import MappingError
+@pytest.mark.asyncio
+async def test_webhook_passes_event_type_to_use_case(client, mock_use_case):
+    response = _post(client, a_push_payload(), event="pull_request")
+    assert response.status_code == 202
+    _args, kwargs = mock_use_case.execute.call_args
+    assert kwargs.get("event_type") == "pull_request"
 
-    mock_use_case.execute.side_effect = MappingError("Unsupported event type")
 
-    payload = {
-        "repository": {
-            "full_name": REPOSITORY,
-            "html_url": f"https://github.com/{REPOSITORY}",
-        }
-    }
-    headers = {"X-GitHub-Event": "unsupported"}
-
-    response = client.post("/webhooks/github", json=payload, headers=headers)
-
+@pytest.mark.asyncio
+async def test_webhook_returns_400_on_mapping_error(client, mock_use_case):
+    mock_use_case.execute.side_effect = MappingError("bad payload")
+    response = _post(client, a_push_payload())
     assert response.status_code == 400
-    assert "Unsupported event type" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_webhook_returns_500_on_unexpected_error(client, mock_use_case):
+    mock_use_case.execute.side_effect = RuntimeError("kaboom")
+    response = _post(client, a_push_payload())
+    assert response.status_code == 500
+
+
+@pytest.mark.asyncio
+async def test_webhook_returns_422_on_validation_error(client, mock_use_case):
+    response = _post(client, {"invalid": "payload"})
+    assert response.status_code == 422
+
+
+# --- signature verification ---
+
+
+@pytest.mark.asyncio
+async def test_webhook_rejects_missing_signature(client, mock_use_case):
+    response = _post(client, a_push_payload(), signature=None)
+    assert response.status_code == 401
+    mock_use_case.execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_webhook_rejects_bad_signature(client, mock_use_case):
+    response = _post(client, a_push_payload(), signature="bad")
+    assert response.status_code == 401
+    mock_use_case.execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_webhook_returns_500_when_secret_not_configured(
+    client, mock_use_case, monkeypatch
+):
+    monkeypatch.setattr(settings, "github_webhook_secret", "")
+    response = _post(client, a_push_payload())
+    assert response.status_code == 500
+    mock_use_case.execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_webhook_preserves_full_raw_payload(client, mock_use_case):
+    # a field not declared on GithubWebhookDTO must still reach the use case
+    payload = a_push_payload()
+    payload["repository"]["owner"] = {"login": "paco"}
+    response = _post(client, payload)
+    assert response.status_code == 202
+    sent_payload, _kwargs = mock_use_case.execute.call_args[0], {}
+    assert sent_payload[0]["repository"]["owner"] == {"login": "paco"}

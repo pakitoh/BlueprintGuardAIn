@@ -5,7 +5,18 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from src.application.use_cases.process_webhook import ProcessWebhookUseCase
+from src.config import settings
 from src.interface.api.router import get_process_webhook_use_case, router
+
+# Shared HMAC secret for signing webhook requests in tests. Must match the value
+# the autouse fixture installs on settings.
+WEBHOOK_TEST_SECRET = "test-secret"
+
+
+@pytest.fixture(autouse=True)
+def configure_webhook_secret(monkeypatch):
+    """Install a known webhook secret so signed requests verify in tests."""
+    monkeypatch.setattr(settings, "github_webhook_secret", WEBHOOK_TEST_SECRET)
 
 
 @pytest.fixture(autouse=True)
