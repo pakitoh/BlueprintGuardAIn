@@ -1,5 +1,5 @@
 import time
-from datetime import datetime
+from datetime import UTC, datetime
 
 from src.application.use_cases.process_analysis_result import (
     ProcessAnalysisResultUseCase,
@@ -27,7 +27,7 @@ class InstrumentedProcessAnalysisResultUseCase(ProcessAnalysisResultUseCase):
         if result.ingested_at:
             try:
                 ingested = datetime.fromisoformat(result.ingested_at)
-                total = (datetime.now() - ingested).total_seconds()
+                total = (datetime.now(UTC) - ingested).total_seconds()
                 pipeline_duration.record(total, attrs)
             except ValueError:
                 pass
