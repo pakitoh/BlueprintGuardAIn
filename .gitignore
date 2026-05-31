@@ -15,3 +15,7 @@ wheels/
 
 # Containers data
 data/
+
+# IDEs files
+.vscode/
+.idea/
