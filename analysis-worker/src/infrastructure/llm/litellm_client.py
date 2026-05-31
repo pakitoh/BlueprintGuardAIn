@@ -1,5 +1,4 @@
 import time
-from typing import Any
 
 import litellm
 import structlog
@@ -7,12 +6,10 @@ from litellm import (  # type: ignore[attr-defined]
     APIConnectionError,
     BadGatewayError,
     InternalServerError,
-    Router,
     ServiceUnavailableError,
     Timeout,
 )
 from tenacity import (
-    RetryCallState,
     retry,
     retry_if_exception_type,
     stop_after_attempt,
@@ -31,19 +28,16 @@ from src.infrastructure.llm.analyzer_config import (
     LLM_WAIT_MULTIPLIER,
 )
 from src.infrastructure.llm.circuit_breaker import circuit_breaker
+from src.infrastructure.llm.router_factory import build_router
 from src.infrastructure.metrics import (
     llm_call_duration,
     llm_completion_tokens,
     llm_cost_usd,
     llm_prompt_tokens,
 )
+from src.infrastructure.retry_logging import make_retry_logger
 
 logger = structlog.get_logger()
-
-
-def _log_llm_retry(rs: RetryCallState) -> None:
-    err: Any = rs.outcome.exception() if rs.outcome is not None else None
-    logger.warning("llm_retry", attempt=rs.attempt_number, error=str(err))
 
 
 _LLM_RETRYABLE = (
@@ -58,24 +52,7 @@ _LLM_RETRYABLE = (
 class LiteLLMClient(LLMClient):
     def __init__(self, configs: list[tuple[str, str]]):
         self._model = configs[0][0]
-        self._router = LiteLLMClient._build_router(configs)
-
-    @staticmethod
-    def _build_router(configs: list[tuple[str, str]]) -> Router:
-        names = [f"config-{i}" for i in range(len(configs))]
-        model_list = [
-            {
-                "model_name": name,
-                "litellm_params": {"model": model, "api_key": api_key},
-            }
-            for name, (model, api_key) in zip(names, configs, strict=True)
-        ]
-        fallbacks: list[Any] = [{names[0]: names[1:]}] if len(names) > 1 else []
-        return Router(
-            model_list=model_list,
-            fallbacks=fallbacks,
-            timeout=LLM_TIMEOUT,
-        )
+        self._router = build_router(configs, timeout=LLM_TIMEOUT)
 
     @circuit_breaker(
         failure_threshold=CB_FAILURE_THRESHOLD, reset_timeout=CB_RESET_TIMEOUT
@@ -87,7 +64,7 @@ class LiteLLMClient(LLMClient):
         ),
         retry=retry_if_exception_type(_LLM_RETRYABLE),
         reraise=True,
-        before_sleep=_log_llm_retry,
+        before_sleep=make_retry_logger("llm_retry"),
     )
     async def call(self, prompt: str) -> LLMResponse:
         start = time.perf_counter()

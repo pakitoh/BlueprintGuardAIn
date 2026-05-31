@@ -1,7 +1,6 @@
 import io
 import struct
 from collections.abc import AsyncIterator
-from pathlib import Path
 from typing import Any, cast
 
 import structlog
@@ -88,5 +87,4 @@ class KafkaAnalysisResultSource(AnalysisResultSource):
             except Exception as e:
                 logger.error("message_consumption_failed", error=str(e))
             finally:
-                Path("/tmp/heartbeat").touch()
                 otel_context.detach(token)

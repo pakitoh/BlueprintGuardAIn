@@ -10,7 +10,7 @@ def mock_litellm(mocker):
     mock_router = MagicMock()
     mock_router.acompletion = AsyncMock(return_value=mock_response)
     mocker.patch(
-        "src.infrastructure.llm.litellm_client.Router", return_value=mock_router
+        "src.infrastructure.llm.litellm_client.build_router", return_value=mock_router
     )
     return mock_router.acompletion
 
@@ -22,7 +22,7 @@ def mock_litellm_embedding(mocker):
     mock_router = MagicMock()
     mock_router.aembedding = AsyncMock(return_value=mock_response)
     mocker.patch(
-        "src.infrastructure.llm.litellm_embedder.Router", return_value=mock_router
+        "src.infrastructure.llm.litellm_embedder.build_router", return_value=mock_router
     )
     return mock_router.aembedding
 

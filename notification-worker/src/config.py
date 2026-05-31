@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     results_topic: str = "analysis-results"
     consumer_group_id: str = "notification-worker-group"
 
+    # Liveness — heartbeat file polled by the container HEALTHCHECK
+    heartbeat_path: str = "/tmp/heartbeat"
+    heartbeat_interval_seconds: float = 15.0
+
     github_token: str = ""
     github_api_url: str = "https://api.github.com"
     github_trigger_statuses: list[str] = ["COMPLETED", "FAILED"]

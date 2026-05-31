@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     results_topic: str = "analysis-results"
     consumer_group_id: str = "analysis-worker-group"
 
+    # Liveness — heartbeat file polled by the container HEALTHCHECK
+    heartbeat_path: str = "/tmp/heartbeat"
+    heartbeat_interval_seconds: float = 15.0
+
     # LLM — first entry is primary, rest are fallbacks
     llm_configs: list[LLMConfig] = []
 

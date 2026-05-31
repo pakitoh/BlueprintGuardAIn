@@ -1,3 +1,4 @@
+from langfuse import get_client
 from schema_registry.client import SchemaRegistryClient
 
 from src.application.services.finding_parser import FindingParser
@@ -6,6 +7,7 @@ from src.application.services.llm_code_analyzer import LLMCodeAnalyzer
 from src.application.services.prompt_composer import PromptComposer
 from src.config import settings
 from src.infrastructure.github.github_diff_fetcher import GitHubDiffFetcher
+from src.infrastructure.heartbeat import Heartbeat
 from src.infrastructure.instrumentation import flush_langfuse
 from src.infrastructure.kafka.analysis_result_repository import (
     KafkaAnalysisResultRepository,
@@ -25,6 +27,7 @@ class InfrastructureFactory:
         self._analyzer: LLMCodeAnalyzer | None = None
         self._embedder: LiteLLMEmbedder | None = None
         self._findings_store: PgVectorFindingsStore | None = None
+        self._heartbeat: Heartbeat | None = None
 
     @property
     def schema_client(self) -> SchemaRegistryClient:
@@ -51,6 +54,12 @@ class InfrastructureFactory:
         return self._analyzer
 
     async def start(self) -> None:
+        self._heartbeat = Heartbeat(
+            path=settings.heartbeat_path,
+            interval_seconds=settings.heartbeat_interval_seconds,
+        )
+        await self._heartbeat.start()
+
         if not settings.llm_configs:
             raise RuntimeError("ANALYSIS_LLM_CONFIGS must have at least one entry")
         if not settings.embedding_configs:
@@ -81,8 +90,6 @@ class InfrastructureFactory:
             schema_client=self.schema_client,
             schema_str=schema_str,
         )
-        from langfuse import get_client
-
         prompt_repo = LangfusePromptRepository(
             client=get_client(),
             prompt_name=settings.langfuse_prompt_name,
@@ -108,4 +115,6 @@ class InfrastructureFactory:
             await self._source.stop()
         if self._findings_store:
             await self._findings_store.stop()
+        if self._heartbeat:
+            await self._heartbeat.stop()
         flush_langfuse()

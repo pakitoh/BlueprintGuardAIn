@@ -82,7 +82,7 @@ async def test_each_method_gets_independent_state():
         @circuit_breaker(failure_threshold=1, reset_timeout=60.0)
         async def first(self, succeed: bool = True) -> str:
             if not succeed:
-                raise Exception("fail")
+                raise Exception("provider down")
             return "first"
 
         @circuit_breaker(failure_threshold=1, reset_timeout=60.0)
