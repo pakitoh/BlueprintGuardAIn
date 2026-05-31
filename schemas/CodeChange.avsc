@@ -23,6 +23,12 @@
       "name": "raw_payload",
       "type": "string",
       "doc": "Stringified JSON payload"
+    },
+    {
+      "name": "ingested_at",
+      "type": ["null", "string"],
+      "default": null,
+      "doc": "ISO-8601 UTC timestamp when the webhook was received by ingestion-service"
     }
   ]
 }

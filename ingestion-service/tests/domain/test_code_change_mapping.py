@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import pytest
 
 from src.domain.entities.code_change import CodeChange
@@ -55,6 +57,13 @@ def test_push_preserves_raw_payload():
     assert change.raw_payload is payload
 
 
+def test_push_stamps_parseable_ingested_at():
+    change = CodeChange.from_push_event(a_push_payload())
+    # must be a tz-aware ISO-8601 string the downstream worker can parse
+    parsed = datetime.fromisoformat(change.ingested_at)
+    assert parsed.tzinfo is not None
+
+
 def test_push_raises_on_missing_keys():
     with pytest.raises(MappingError, match="Missing required field"):
         CodeChange.from_push_event({"ref": "only-ref-no-repo"})
@@ -89,6 +98,12 @@ def test_pr_preserves_raw_payload():
     payload = a_pr_payload()
     change = CodeChange.from_pull_request_event(payload)
     assert change.raw_payload is payload
+
+
+def test_pr_stamps_parseable_ingested_at():
+    change = CodeChange.from_pull_request_event(a_pr_payload())
+    parsed = datetime.fromisoformat(change.ingested_at)
+    assert parsed.tzinfo is not None
 
 
 def test_pr_raises_on_missing_keys():

@@ -1,5 +1,8 @@
+import json
+
 import structlog
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from pydantic import ValidationError
 
 from src.application.use_cases.process_webhook import ProcessWebhookUseCase
 from src.domain.exceptions import MappingError
@@ -32,11 +35,21 @@ async def version(request: Request) -> dict[str, str]:
 
 @router.post("/webhooks/github", status_code=202)
 async def github_webhook(
-    event: GithubWebhookDTO,
+    request: Request,
     x_github_event: str = Header(...),
     use_case: ProcessWebhookUseCase = Depends(get_process_webhook_use_case),
 ) -> dict[str, str]:
-    payload = event.model_dump(exclude_unset=True)
+    raw_body = await request.body()
+    try:
+        payload = json.loads(raw_body)
+    except json.JSONDecodeError as e:
+        logger.warning("webhook_invalid_json", error=str(e))
+        raise HTTPException(status_code=400, detail="Invalid JSON body") from e
+    try:
+        GithubWebhookDTO.model_validate(payload)
+    except ValidationError as e:
+        logger.warning("webhook_validation_failed", error=str(e))
+        raise HTTPException(status_code=422, detail=e.errors()) from e
     try:
         await use_case.execute(payload, event_type=x_github_event)
     except MappingError as e:

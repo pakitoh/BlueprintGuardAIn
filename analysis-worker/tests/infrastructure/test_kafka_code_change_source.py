@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 import pytest
@@ -6,7 +7,7 @@ from opentelemetry import trace
 from src.infrastructure.kafka.code_change_source import KafkaCodeChangeSource
 
 
-def _make_source(messages, mocker):
+def _make_source(messages, mocker, deserialized=None):
     source = KafkaCodeChangeSource(
         bootstrap_servers="localhost:9092",
         topic="code-changes",
@@ -26,7 +27,8 @@ def _make_source(messages, mocker):
     mocker.patch.object(
         source,
         "_deserialize_avro",
-        return_value={
+        return_value=deserialized
+        or {
             "repository": "org/repo",
             "ref": "main",
             "target_sha": "sha123",
@@ -67,3 +69,40 @@ async def test_listen_yields_entity_when_no_headers(mocker):
         count += 1
 
     assert count == 1
+
+
+@pytest.mark.asyncio
+async def test_listen_uses_ingested_at_as_timestamp(mocker):
+    msg = MagicMock()
+    msg.headers = []
+    ingested = "2026-05-29T10:00:00+00:00"
+    source = _make_source(
+        [msg],
+        mocker,
+        deserialized={
+            "repository": "org/repo",
+            "ref": "main",
+            "target_sha": "sha123",
+            "event_type": "push",
+            "raw_payload": "{}",
+            "ingested_at": ingested,
+        },
+    )
+
+    changes = [c async for c in source.listen()]
+
+    assert changes[0].timestamp == datetime.fromisoformat(ingested)
+
+
+@pytest.mark.asyncio
+async def test_listen_falls_back_to_now_when_ingested_at_absent(mocker):
+    msg = MagicMock()
+    msg.headers = []
+    before = datetime.now(UTC)
+    source = _make_source([msg], mocker)  # default dict has no ingested_at
+
+    changes = [c async for c in source.listen()]
+
+    # falls back to an aware "now" rather than raising or yielding naive
+    assert changes[0].timestamp.tzinfo is not None
+    assert changes[0].timestamp >= before

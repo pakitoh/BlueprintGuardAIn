@@ -1,7 +1,12 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import Any
 
 from src.domain.exceptions import MappingError
+
+
+def _now_iso() -> str:
+    return datetime.now(UTC).isoformat()
 
 
 @dataclass(frozen=True)
@@ -13,6 +18,7 @@ class CodeChange:
     target_sha: str
     event_type: str
     raw_payload: dict[str, Any]
+    ingested_at: str = field(default_factory=_now_iso)
 
     def __post_init__(self) -> None:
         if not self.repository:

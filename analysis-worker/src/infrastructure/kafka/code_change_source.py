@@ -2,6 +2,7 @@ import io
 import json
 import struct
 from collections.abc import AsyncIterator
+from datetime import UTC, datetime
 from typing import Any, cast
 
 import structlog
@@ -15,6 +16,20 @@ from src.domain.entities import CodeChange
 from src.domain.ports.code_change_source import CodeChangeSource
 
 logger = structlog.get_logger()
+
+
+def _parse_ingested_at(value: Any) -> datetime:
+    """Parse the ingestion-service receipt timestamp, falling back to now and
+    treating any naive value as UTC."""
+    if not value:
+        return datetime.now(UTC)
+    try:
+        parsed = datetime.fromisoformat(value)
+    except (TypeError, ValueError):
+        return datetime.now(UTC)
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed
 
 
 class KafkaCodeChangeSource(CodeChangeSource):
@@ -85,6 +100,7 @@ class KafkaCodeChangeSource(CodeChangeSource):
                     target_sha=data.get("target_sha", "unknown"),
                     event_type=data.get("event_type", "unknown"),
                     raw_payload=raw_payload,
+                    timestamp=_parse_ingested_at(data.get("ingested_at")),
                 )
             except Exception as e:
                 logger.error("message_consumption_failed", error=str(e))
