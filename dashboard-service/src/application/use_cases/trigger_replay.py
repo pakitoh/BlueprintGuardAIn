@@ -13,11 +13,12 @@ async def trigger_replay(
     repo: AnalysisRepository,
     ingestion_url: str,
     github_token: str,
+    webhook_secret: str,
     progress_repo: ReplayProgressRepository,
     page_cache: dict,
 ) -> AnalysisRecord:
     sha, message = await fetch_next_chronological_commit(
         repo_name, github_token, progress_repo, page_cache
     )
-    await _send_webhook(repo_name, sha, message, ingestion_url)
+    await _send_webhook(repo_name, sha, message, ingestion_url, webhook_secret)
     return await _create_pending_record(repo, repo_name, sha)

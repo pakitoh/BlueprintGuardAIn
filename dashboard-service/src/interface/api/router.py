@@ -95,6 +95,7 @@ async def create_analysis(request: Request) -> AnalysisRecord:
             repo=request.app.state.repo,
             ingestion_url=settings.ingestion_url,
             github_token=settings.github_token,
+            webhook_secret=settings.webhook_secret,
         )
     except Exception as e:
         logger.error("trigger_failed", error=str(e))
@@ -118,6 +119,7 @@ async def create_replay(request: Request) -> AnalysisRecord:
             repo=request.app.state.repo,
             ingestion_url=settings.ingestion_url,
             github_token=settings.github_token,
+            webhook_secret=settings.webhook_secret,
             progress_repo=request.app.state.replay_progress_repo,
             page_cache=request.app.state.replay_page_cache,
         )

@@ -92,7 +92,7 @@ async def test_webhook_rejects_bad_signature(client, mock_use_case):
 async def test_webhook_returns_500_when_secret_not_configured(
     client, mock_use_case, monkeypatch
 ):
-    monkeypatch.setattr(settings, "github_webhook_secret", "")
+    monkeypatch.setattr(settings, "webhook_secret", "")
     response = _post(client, a_push_payload())
     assert response.status_code == 500
     mock_use_case.execute.assert_not_awaited()

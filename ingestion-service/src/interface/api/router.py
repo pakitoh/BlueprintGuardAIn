@@ -4,6 +4,7 @@ import json
 
 import structlog
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
 from src.application.use_cases.process_webhook import ProcessWebhookUseCase
@@ -22,7 +23,7 @@ def _verify_signature(raw_body: bytes, signature: str | None) -> None:
     """Verify GitHub's X-Hub-Signature-256 against the raw body. Always required:
     a missing secret is a server misconfiguration, a missing/bad signature is a
     rejected request."""
-    secret = settings.github_webhook_secret
+    secret = settings.webhook_secret
     if not secret:
         logger.error("webhook_secret_not_configured")
         raise HTTPException(status_code=500, detail="Webhook secret not configured")
@@ -45,7 +46,21 @@ def get_process_webhook_use_case(request: Request) -> ProcessWebhookUseCase:
 
 @router.get("/health")
 async def health() -> dict[str, str]:
+    """Liveness probe: the process is up and serving."""
     return {"status": "ok"}
+
+
+@router.get("/ready")
+async def ready(request: Request) -> JSONResponse:
+    """Readiness probe: reports 503 until the Kafka producer is started."""
+    factory = getattr(request.app.state, "factory", None)
+    if factory is not None:
+        try:
+            if factory.code_change_repository.is_ready():
+                return JSONResponse(status_code=200, content={"status": "ready"})
+        except RuntimeError:
+            pass
+    return JSONResponse(status_code=503, content={"status": "not_ready"})
 
 
 @router.get("/version")

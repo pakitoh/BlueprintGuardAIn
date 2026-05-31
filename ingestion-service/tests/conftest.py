@@ -16,7 +16,7 @@ WEBHOOK_TEST_SECRET = "test-secret"
 @pytest.fixture(autouse=True)
 def configure_webhook_secret(monkeypatch):
     """Install a known webhook secret so signed requests verify in tests."""
-    monkeypatch.setattr(settings, "github_webhook_secret", WEBHOOK_TEST_SECRET)
+    monkeypatch.setattr(settings, "webhook_secret", WEBHOOK_TEST_SECRET)
 
 
 @pytest.fixture(autouse=True)

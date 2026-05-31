@@ -29,8 +29,12 @@ class KafkaCodeChangeRepository(CodeChangeRepository):
         self.schema_client = schema_client
         self.schema_str = schema_str
         self.producer: AIOKafkaProducer | None = None  # Created in start()
+        self._started = False
         self._schema_id: int | None = None
         self._parsed_schema: Any = None
+
+    def is_ready(self) -> bool:
+        return self._started and self.producer is not None
 
     async def start(self) -> None:
         """Starts the underlying Kafka producer."""
@@ -38,11 +42,13 @@ class KafkaCodeChangeRepository(CodeChangeRepository):
             producer = AIOKafkaProducer(bootstrap_servers=self.bootstrap_servers)
             await producer.start()
             self.producer = producer
+            self._started = True
             logger.debug("kafka_producer_started", topic=self.topic)
         except Exception as e:
             raise RepositoryError(f"Failed to start Kafka producer: {e}") from e
 
     async def stop(self) -> None:
+        self._started = False
         if self.producer:
             await self.producer.stop()
             logger.debug("kafka_producer_stopped", topic=self.topic)

@@ -1,3 +1,6 @@
+import hashlib
+import hmac
+import json
 import uuid
 from datetime import datetime
 
@@ -15,15 +18,20 @@ async def trigger_analysis(
     repo: AnalysisRepository,
     ingestion_url: str,
     github_token: str,
+    webhook_secret: str,
 ) -> AnalysisRecord:
     repository, sha, message = await pick_random_commit(github_token)
-    await _send_webhook(repository, sha, message, ingestion_url)
+    await _send_webhook(repository, sha, message, ingestion_url, webhook_secret)
     record = await _create_pending_record(repo, repository, sha)
     return record
 
 
+def _sign(body: bytes, secret: str) -> str:
+    return "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+
+
 async def _send_webhook(
-    repository: str, sha: str, message: str, ingestion_url: str
+    repository: str, sha: str, message: str, ingestion_url: str, webhook_secret: str
 ) -> None:
     payload = {
         "ref": "refs/heads/main",
@@ -36,11 +44,18 @@ async def _send_webhook(
             {"id": sha, "message": message, "added": [], "modified": [], "removed": []}
         ],
     }
+    # Serialize once and send the exact bytes we signed; ingestion-service verifies
+    # the HMAC over the raw request body, so re-serialization must be avoided.
+    body = json.dumps(payload).encode()
     async with httpx.AsyncClient() as client:
         resp = await client.post(
             ingestion_url,
-            json=payload,
-            headers={"X-GitHub-Event": "push"},
+            content=body,
+            headers={
+                "X-GitHub-Event": "push",
+                "Content-Type": "application/json",
+                "X-Hub-Signature-256": _sign(body, webhook_secret),
+            },
             timeout=5.0,
         )
         resp.raise_for_status()

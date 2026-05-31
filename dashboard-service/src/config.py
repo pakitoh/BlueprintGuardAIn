@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     otel_exporter_otlp_endpoint: str = "http://localhost:4317"
 
     ingestion_url: str = "http://localhost:8000/webhooks/github"
+    # Shared HMAC secret used to sign webhooks sent to ingestion-service
+    webhook_secret: str = ""
     kafka_bootstrap_servers: str = "localhost:9094"
     results_topic: str = "analysis-results"
     consumer_group_id: str = "dashboard-service"
