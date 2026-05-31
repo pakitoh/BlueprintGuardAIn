@@ -5,6 +5,7 @@ import pytest
 from src.application.use_cases.process_webhook import ProcessWebhookUseCase
 from src.domain.exceptions import MappingError, UnsupportedEventError
 from src.domain.ports.repository import CodeChangeRepository
+from src.infrastructure.idempotency.in_memory_store import InMemoryIdempotencyStore
 
 # --- Helpers ---
 
@@ -31,7 +32,9 @@ def a_pr_payload(**overrides):
 
 def a_use_case():
     mock_repo = AsyncMock(spec=CodeChangeRepository)
-    return ProcessWebhookUseCase(repository=mock_repo), mock_repo
+    store = InMemoryIdempotencyStore(ttl_seconds=3600)
+    use_case = ProcessWebhookUseCase(repository=mock_repo, idempotency_store=store)
+    return use_case, mock_repo
 
 
 # --- push event ---
@@ -150,3 +153,44 @@ async def test_unsupported_event_does_not_call_save():
     with pytest.raises(UnsupportedEventError):
         await use_case.execute({}, event_type="star")
     mock_repo.save.assert_not_called()
+
+
+# --- idempotency (repo + target_sha dedup) ---
+
+
+@pytest.mark.asyncio
+async def test_same_repo_and_sha_is_processed_only_once():
+    use_case, mock_repo = a_use_case()
+    await use_case.execute(a_push_payload(after="dup-sha"), event_type="push")
+    await use_case.execute(a_push_payload(after="dup-sha"), event_type="push")
+    mock_repo.save.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_distinct_shas_are_both_processed():
+    use_case, mock_repo = a_use_case()
+    await use_case.execute(a_push_payload(after="sha-1"), event_type="push")
+    await use_case.execute(a_push_payload(after="sha-2"), event_type="push")
+    assert mock_repo.save.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_dedup_is_source_agnostic_push_then_same_sha():
+    # a dashboard-style re-trigger of the same commit is also deduped, with no
+    # synthetic header involved — the key is the content (repo + sha)
+    use_case, mock_repo = a_use_case()
+    payload = a_push_payload(after="abc123")
+    await use_case.execute(payload, event_type="push")
+    await use_case.execute(payload, event_type="push")
+    mock_repo.save.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_failed_save_is_not_marked_so_retry_reprocesses():
+    use_case, mock_repo = a_use_case()
+    mock_repo.save.side_effect = [RuntimeError("kafka down"), None]
+    with pytest.raises(RuntimeError):
+        await use_case.execute(a_push_payload(after="retry-sha"), event_type="push")
+    # the retry of the same commit must go through, not be skipped as duplicate
+    await use_case.execute(a_push_payload(after="retry-sha"), event_type="push")
+    assert mock_repo.save.call_count == 2

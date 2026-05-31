@@ -16,7 +16,10 @@ class Settings(BaseSettings):
     webhook_events_topic: str = "webhook-events"
 
     # Security — HMAC secret shared with GitHub for X-Hub-Signature-256
-    webhook_secret: str = "default_secret"
+    webhook_secret: str = ""
+
+    # Idempotency — retain repo@sha keys this long to dedup re-deliveries
+    webhook_dedup_ttl_seconds: float = 3600.0
 
     model_config = SettingsConfigDict(
         env_file=".env",

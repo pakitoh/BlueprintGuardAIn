@@ -41,7 +41,10 @@ def get_process_webhook_use_case(request: Request) -> ProcessWebhookUseCase:
     factory = getattr(request.app.state, "factory", None)
     if factory is None:
         raise RuntimeError("InfrastructureFactory not initialized in app state")
-    return InstrumentedProcessWebhookUseCase(repository=factory.code_change_repository)
+    return InstrumentedProcessWebhookUseCase(
+        repository=factory.code_change_repository,
+        idempotency_store=factory.idempotency_store,
+    )
 
 
 @router.get("/health")

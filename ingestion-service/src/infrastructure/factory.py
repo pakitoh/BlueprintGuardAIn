@@ -1,6 +1,8 @@
 from schema_registry.client import SchemaRegistryClient
 
 from src.config import settings
+from src.domain.ports.idempotency_store import IdempotencyStore
+from src.infrastructure.idempotency.in_memory_store import InMemoryIdempotencyStore
 from src.infrastructure.kafka.repository import KafkaCodeChangeRepository
 
 
@@ -8,6 +10,15 @@ class InfrastructureFactory:
     def __init__(self) -> None:
         self._schema_client: SchemaRegistryClient | None = None
         self._repo: KafkaCodeChangeRepository | None = None
+        # Pure in-memory, no I/O lifecycle — created eagerly and shared across
+        # all requests so the dedup cache persists between webhook deliveries.
+        self._idempotency_store: IdempotencyStore = InMemoryIdempotencyStore(
+            ttl_seconds=settings.webhook_dedup_ttl_seconds
+        )
+
+    @property
+    def idempotency_store(self) -> IdempotencyStore:
+        return self._idempotency_store
 
     @property
     def schema_client(self) -> SchemaRegistryClient:
