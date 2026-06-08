@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     schema_registry_url: str = "http://localhost:8081"
     webhook_events_topic: str = "webhook-events"
     results_topic: str = "analysis-results"
+    dlq_topic: str = "webhook-events-dlq"
     consumer_group_id: str = "analysis-worker-group"
 
     # Liveness — heartbeat file polled by the container HEALTHCHECK

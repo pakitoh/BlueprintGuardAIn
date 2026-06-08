@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     kafka_bootstrap_servers: str = "localhost:9094"
     schema_registry_url: str = "http://localhost:8081"
     results_topic: str = "analysis-results"
+    dlq_topic: str = "analysis-results-dlq"
     consumer_group_id: str = "notification-worker-group"
 
     # Liveness — heartbeat file polled by the container HEALTHCHECK

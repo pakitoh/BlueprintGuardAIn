@@ -35,6 +35,7 @@ class InfrastructureFactory:
             topic=settings.results_topic,
             group_id=settings.consumer_group_id,
             schema_client=self.schema_client,
+            dlq_topic=settings.dlq_topic,
         )
         await source.start()
         self._source = source

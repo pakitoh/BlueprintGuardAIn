@@ -81,6 +81,7 @@ class InfrastructureFactory:
             topic=settings.webhook_events_topic,
             group_id=settings.consumer_group_id,
             schema_client=self.schema_client,
+            dlq_topic=settings.dlq_topic,
         )
         with open("../schemas/AnalysisResult.avsc") as f:
             schema_str = f.read()
