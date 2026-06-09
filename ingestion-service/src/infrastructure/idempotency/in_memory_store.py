@@ -4,11 +4,12 @@ from src.domain.ports.idempotency_store import IdempotencyStore
 
 
 class InMemoryIdempotencyStore(IdempotencyStore):
-    """Best-effort, in-process deduplication of webhook delivery IDs.
+    """Best-effort, in-process deduplication of already-processed changes.
 
-    Holds each key for ``ttl_seconds`` so GitHub's retry storms for an already
-    processed delivery are skipped. Not durable: state is lost on restart and is
-    not shared across replicas — adequate for the single-instance deployment.
+    Keys are supplied by the caller — the use case keys on ``repository@target_sha``
+    — and held for ``ttl_seconds`` so GitHub's retry storms for an already processed
+    change are skipped. Not durable: state is lost on restart and is not shared
+    across replicas — adequate for the single-instance deployment.
     """
 
     def __init__(self, ttl_seconds: float):

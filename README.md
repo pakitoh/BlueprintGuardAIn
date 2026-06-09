@@ -183,7 +183,7 @@ Analysis quality improves over time through a **Retrieval-Augmented Generation**
 
 **Repo-agnostic embeddings:** The embedding text is normalised to strip repository names and full paths, keeping only filenames and recognised architectural layer segments (`domain`, `use_cases`, etc.). This means a finding about a Kafka consumer in `service-A` can inform the analysis of an equivalent change in `service-B`, enabling cross-project knowledge transfer.
 
-**Embedder port for swappability:** Embeddings are produced via a `LiteLLMEmbedder` adapter that calls Google's `text-embedding-004` but the `Embedder` port keeps the door open to swap in a different one or even a local model (e.g. `sentence-transformers`).
+**Embedder port for swappability:** Embeddings are produced via a `LiteLLMEmbedder` adapter that calls whichever model you configure in `ANALYSIS_EMBEDDING_CONFIGS` (any LiteLLM-supported provider). The `Embedder` port keeps the door open to swap in a different one or even a local model (e.g. `sentence-transformers`).
 
 **Resilience:** If the vector store is unavailable, the analysis still runs — the RAG context is silently omitted and a warning is logged. Failures in saving new findings after analysis are also non-blocking.
 
@@ -255,9 +255,15 @@ Set `ANALYSIS_LANGFUSE_PUBLIC_KEY` and `ANALYSIS_LANGFUSE_SECRET_KEY` in `.env` 
 
 Each service has an isolated test suite that runs without Docker. Infrastructure (Kafka, pgvector, LiteLLM) is mocked at the boundary via `conftest.py` fixtures.
 
+Run a single service's suite, or all four from the repo root:
+
 ```bash
-cd analysis-worker && uv run python -m pytest
+cd analysis-worker && uv run python -m pytest   # one service
+make test                                        # all services
+make coverage                                    # all services, with coverage report
 ```
+
+`make coverage` enforces a 70% `fail_under` gate per service (boot/glue modules — composition roots and OTEL wiring — are excluded so the number reflects real logic coverage).
 
 ---
 
@@ -271,6 +277,8 @@ Services communicate asynchronously via two Kafka topics using **Avro-serialized
 | :--- | :--- | :--- |
 | `webhook-events` | ingestion-service | analysis-worker |
 | `analysis-results` | analysis-worker | notification-worker, dashboard-service |
+
+**At-least-once delivery:** consumers run with auto-commit disabled and commit the offset only *after* a message is fully processed — so a crash mid-analysis redelivers the event on restart rather than dropping it. Messages that can't be deserialized are routed to a dead-letter topic (`webhook-events-dlq`, `analysis-results-dlq`) and then committed, so a poison message is captured for inspection without blocking the partition.
 
 ### PostgreSQL + pgvector
 
