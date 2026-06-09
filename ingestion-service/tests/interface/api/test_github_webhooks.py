@@ -1,11 +1,14 @@
 import hashlib
 import hmac
 import json
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 
 from src.config import settings
 from src.domain.exceptions import MappingError, UnsupportedEventError
+from src.interface.api.router import get_process_webhook_use_case
 from tests.conftest import WEBHOOK_TEST_SECRET
 
 
@@ -77,6 +80,25 @@ async def test_webhook_returns_500_on_unexpected_error(client, mock_use_case):
 async def test_webhook_returns_422_on_validation_error(client, mock_use_case):
     response = _post(client, {"invalid": "payload"})
     assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_webhook_returns_400_on_invalid_json(client, mock_use_case):
+    body = b"{not valid json"
+    headers = {"X-GitHub-Event": "push", "X-Hub-Signature-256": _sign(body)}
+
+    response = client.post("/webhooks/github", content=body, headers=headers)
+
+    assert response.status_code == 400
+    mock_use_case.execute.assert_not_awaited()
+
+
+def test_provider_raises_when_factory_not_initialized():
+    request = MagicMock()
+    request.app.state = SimpleNamespace()  # no `factory` attribute
+
+    with pytest.raises(RuntimeError, match="not initialized"):
+        get_process_webhook_use_case(request)
 
 
 # --- signature verification ---

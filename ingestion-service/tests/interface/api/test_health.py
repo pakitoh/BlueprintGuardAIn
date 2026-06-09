@@ -32,3 +32,13 @@ def test_ready_returns_503_when_repository_not_ready(test_app, client):
 
     response = client.get("/ready")
     assert response.status_code == 503
+
+
+def test_ready_returns_503_when_is_ready_raises(test_app, client):
+    factory = MagicMock()
+    factory.code_change_repository.is_ready.side_effect = RuntimeError("not started")
+    test_app.state.factory = factory
+
+    response = client.get("/ready")
+    assert response.status_code == 503
+    assert response.json() == {"status": "not_ready"}

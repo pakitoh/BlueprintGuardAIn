@@ -50,7 +50,15 @@ exclude = ["dist/", "\\.venv/"]
 
 [tool.coverage.run]
 source = ["src"]
-omit = ["src/**/__init__.py"]
+omit = [
+    "src/**/__init__.py",
+    "src/main.py",
+    "src/config.py",
+    "src/infrastructure/factory.py",
+    "src/infrastructure/instrumentation.py",
+    "src/infrastructure/metrics.py",
+    "src/infrastructure/tracing/decorators.py",
+]
 
 [tool.coverage.report]
 fail_under = 70

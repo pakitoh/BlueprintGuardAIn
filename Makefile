@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help start dev install lint test infra infra-down seed build up down
+.PHONY: help start dev install lint test coverage infra infra-down seed build up down
 
 help:
 	@echo "Usage: make <target>"
@@ -11,6 +11,7 @@ help:
 	@echo "  install     Install dependencies for all services"
 	@echo "  lint        Run ruff and mypy across all services"
 	@echo "  test        Run the test suite for all services"
+	@echo "  coverage    Run the test suite with a coverage report for all services"
 	@echo "  infra       Start infrastructure (Kafka, PostgreSQL, OTEL stack)"
 	@echo "  infra-down  Stop infrastructure"
 	@echo "  seed        Seed the analysis knowledge base"
@@ -39,6 +40,12 @@ test:
 	cd dashboard-service   && uv run python -m pytest
 	cd ingestion-service   && uv run python -m pytest
 	cd notification-worker && uv run python -m pytest
+
+coverage:
+	cd analysis-worker     && uv run python -m pytest --cov
+	cd dashboard-service   && uv run python -m pytest --cov
+	cd ingestion-service   && uv run python -m pytest --cov
+	cd notification-worker && uv run python -m pytest --cov
 
 infra:
 	docker compose up -d

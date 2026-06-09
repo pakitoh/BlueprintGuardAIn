@@ -138,3 +138,52 @@ async def test_listen_routes_undecodable_message_to_dlq_and_commits(mocker):
     assert yielded == []  # poison message is not yielded downstream
     source._dlq_producer.send_and_wait.assert_awaited_once()
     source.consumer.commit.assert_awaited_once()  # advances past the poison message
+
+
+@pytest.mark.asyncio
+async def test_start_and_stop_manage_consumer_and_dlq_producer(mock_kafka):
+    source = KafkaCodeChangeSource(
+        bootstrap_servers="localhost:9092",
+        topic="code-changes",
+        group_id="test",
+        schema_client=MagicMock(),
+        dlq_topic="code-changes-dlq",
+    )
+
+    await source.start()
+    await source.stop()
+
+    mock_kafka["consumer"].start.assert_awaited_once()
+    mock_kafka["dlq_producer"].start.assert_awaited_once()
+    mock_kafka["consumer"].stop.assert_awaited_once()
+    mock_kafka["dlq_producer"].stop.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_route_to_dlq_is_noop_when_producer_absent():
+    source = KafkaCodeChangeSource(
+        bootstrap_servers="localhost:9092",
+        topic="code-changes",
+        group_id="test",
+        schema_client=MagicMock(),
+        dlq_topic="code-changes-dlq",
+    )
+
+    # No producer started — must not raise.
+    await source._route_to_dlq(MagicMock(), ValueError("boom"))
+
+
+@pytest.mark.asyncio
+async def test_route_to_dlq_swallows_publish_failure():
+    source = KafkaCodeChangeSource(
+        bootstrap_servers="localhost:9092",
+        topic="code-changes",
+        group_id="test",
+        schema_client=MagicMock(),
+        dlq_topic="code-changes-dlq",
+    )
+    source._dlq_producer = AsyncMock()
+    source._dlq_producer.send_and_wait.side_effect = RuntimeError("broker down")
+
+    # DLQ publish failure is logged, not propagated.
+    await source._route_to_dlq(MagicMock(), ValueError("boom"))
