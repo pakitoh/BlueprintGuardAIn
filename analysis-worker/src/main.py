@@ -22,6 +22,7 @@ async def run_worker() -> None:
             source=factory.code_change_source,
             sink=factory.analysis_result_repository,
             analyzer=factory.code_analyzer,
+            idempotency=factory.idempotency_store,
         )
         logger.info("analysis_worker_ready", version=version)
         await use_case.run()

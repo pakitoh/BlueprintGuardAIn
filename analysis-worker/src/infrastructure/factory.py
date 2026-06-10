@@ -17,6 +17,7 @@ from src.infrastructure.langfuse.prompt_repository import LangfusePromptReposito
 from src.infrastructure.llm.litellm_client import LiteLLMClient
 from src.infrastructure.llm.litellm_embedder import LiteLLMEmbedder
 from src.infrastructure.pgvector.pgvector_findings_store import PgVectorFindingsStore
+from src.infrastructure.postgres.idempotency_store import PgIdempotencyStore
 
 
 class InfrastructureFactory:
@@ -27,6 +28,7 @@ class InfrastructureFactory:
         self._analyzer: LLMCodeAnalyzer | None = None
         self._embedder: LiteLLMEmbedder | None = None
         self._findings_store: PgVectorFindingsStore | None = None
+        self._idempotency: PgIdempotencyStore | None = None
         self._heartbeat: Heartbeat | None = None
 
     @property
@@ -53,6 +55,12 @@ class InfrastructureFactory:
             raise RuntimeError("Factory not started. Call start() first.")
         return self._analyzer
 
+    @property
+    def idempotency_store(self) -> PgIdempotencyStore:
+        if not self._idempotency:
+            raise RuntimeError("Factory not started. Call start() first.")
+        return self._idempotency
+
     async def start(self) -> None:
         self._heartbeat = Heartbeat(
             path=settings.heartbeat_path,
@@ -75,6 +83,9 @@ class InfrastructureFactory:
             embedder=self._embedder,
         )
         await self._findings_store.start()
+
+        self._idempotency = PgIdempotencyStore(dsn=settings.postgres_dsn)
+        await self._idempotency.start()
 
         self._source = KafkaCodeChangeSource(
             bootstrap_servers=settings.kafka_bootstrap_servers,
@@ -116,6 +127,8 @@ class InfrastructureFactory:
             await self._source.stop()
         if self._findings_store:
             await self._findings_store.stop()
+        if self._idempotency:
+            await self._idempotency.stop()
         if self._heartbeat:
             await self._heartbeat.stop()
         flush_langfuse()

@@ -16,6 +16,12 @@ def a_code_change(repository="paco/blueprint", target_sha="sha123"):
     )
 
 
+def _idempotency(already_processed=False):
+    store = AsyncMock()
+    store.is_processed = AsyncMock(return_value=already_processed)
+    return store
+
+
 def a_process_use_case(findings=None, status="COMPLETED"):
     mock_sink = AsyncMock()
     mock_analyzer = AsyncMock()
@@ -24,12 +30,15 @@ def a_process_use_case(findings=None, status="COMPLETED"):
         status,
     )
     use_case = AnalyzeCodeChangeUseCase(
-        source=AsyncMock(), sink=mock_sink, analyzer=mock_analyzer
+        source=AsyncMock(),
+        sink=mock_sink,
+        analyzer=mock_analyzer,
+        idempotency=_idempotency(),
     )
     return use_case, mock_sink, mock_analyzer
 
 
-def a_run_use_case(changes, findings=None):
+def a_run_use_case(changes, findings=None, already_processed=False):
     async def mock_listen():
         for c in changes:
             yield c
@@ -42,12 +51,17 @@ def a_run_use_case(changes, findings=None):
         findings if findings is not None else ["finding-1"],
         "COMPLETED",
     )
+    mock_idempotency = _idempotency(already_processed)
     return (
         AnalyzeCodeChangeUseCase(
-            source=mock_source, sink=mock_sink, analyzer=mock_analyzer
+            source=mock_source,
+            sink=mock_sink,
+            analyzer=mock_analyzer,
+            idempotency=mock_idempotency,
         ),
         mock_sink,
         mock_analyzer,
+        mock_idempotency,
     )
 
 
@@ -146,14 +160,14 @@ async def test_process_still_saves_result_when_analyzer_returns_failed():
 
 @pytest.mark.asyncio
 async def test_run_does_not_call_sink_when_source_is_empty():
-    use_case, mock_sink, _ = a_run_use_case([])
+    use_case, mock_sink, _, _ = a_run_use_case([])
     await use_case.run()
     mock_sink.save.assert_not_called()
 
 
 @pytest.mark.asyncio
 async def test_run_calls_sink_once_per_change():
-    use_case, mock_sink, _ = a_run_use_case(
+    use_case, mock_sink, _, _ = a_run_use_case(
         [
             a_code_change(target_sha="sha1"),
             a_code_change(target_sha="sha2"),
@@ -166,7 +180,7 @@ async def test_run_calls_sink_once_per_change():
 
 @pytest.mark.asyncio
 async def test_run_maps_each_change_to_correct_result():
-    use_case, mock_sink, _ = a_run_use_case(
+    use_case, mock_sink, _, _ = a_run_use_case(
         [
             a_code_change(repository="org/a", target_sha="sha1"),
             a_code_change(repository="org/b", target_sha="sha2"),
@@ -176,3 +190,36 @@ async def test_run_maps_each_change_to_correct_result():
     results = [call[0][0] for call in mock_sink.save.call_args_list]
     assert results[0].repository == "org/a" and results[0].sha == "sha1"
     assert results[1].repository == "org/b" and results[1].sha == "sha2"
+
+
+# --- idempotency ---
+
+
+@pytest.mark.asyncio
+async def test_run_skips_already_processed_change():
+    use_case, mock_sink, mock_analyzer, mock_idempotency = a_run_use_case(
+        [a_code_change()], already_processed=True
+    )
+    await use_case.run()
+    mock_analyzer.analyze.assert_not_called()
+    mock_sink.save.assert_not_called()
+    mock_idempotency.mark_processed.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_run_checks_idempotency_with_repo_sha_key():
+    use_case, _, _, mock_idempotency = a_run_use_case(
+        [a_code_change(repository="org/x", target_sha="s1")]
+    )
+    await use_case.run()
+    mock_idempotency.is_processed.assert_awaited_once_with("org/x@s1")
+
+
+@pytest.mark.asyncio
+async def test_run_marks_change_processed_after_analysis():
+    use_case, mock_sink, _, mock_idempotency = a_run_use_case(
+        [a_code_change(repository="org/x", target_sha="s1")]
+    )
+    await use_case.run()
+    mock_sink.save.assert_called_once()
+    mock_idempotency.mark_processed.assert_awaited_once_with("org/x@s1")

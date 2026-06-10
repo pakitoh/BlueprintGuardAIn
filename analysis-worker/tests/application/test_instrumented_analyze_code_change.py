@@ -26,7 +26,7 @@ async def test_process_returns_result_and_saves_via_sink():
     analyzer.analyze = AsyncMock(return_value=(["finding-1"], "COMPLETED"))
     sink = AsyncMock()
     use_case = InstrumentedAnalyzeCodeChangeUseCase(
-        source=AsyncMock(), sink=sink, analyzer=analyzer
+        source=AsyncMock(), sink=sink, analyzer=analyzer, idempotency=AsyncMock()
     )
 
     result = await use_case._process(a_change())
