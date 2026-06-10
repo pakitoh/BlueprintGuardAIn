@@ -14,6 +14,7 @@ from src.infrastructure.pgvector.pgvector_config import (
     EMBED_WAIT_MAX,
     EMBED_WAIT_MIN,
     EMBED_WAIT_MULTIPLIER,
+    SIMILARITY_MAX_DISTANCE,
 )
 from src.infrastructure.retry_logging import make_retry_logger
 
@@ -75,9 +76,15 @@ def _to_vector_literal(vector: list[float]) -> str:
 
 
 class PgVectorFindingsStore(FindingsStore):
-    def __init__(self, dsn: str, embedder: Embedder):
+    def __init__(
+        self,
+        dsn: str,
+        embedder: Embedder,
+        max_distance: float = SIMILARITY_MAX_DISTANCE,
+    ):
         self._dsn = dsn
         self._embedder = embedder
+        self._max_distance = max_distance
         self._pool: asyncpg.Pool | None = None
 
     @retry(
@@ -128,10 +135,12 @@ class PgVectorFindingsStore(FindingsStore):
             """
             SELECT rule_text, context
             FROM   past_findings
+            WHERE  embedding <=> $1::vector < $2
             ORDER  BY embedding <=> $1::vector
-            LIMIT  $2
+            LIMIT  $3
             """,
             vector_literal,
+            self._max_distance,
             limit,
         )
         rag_retrieval_duration.record(time.perf_counter() - start)

@@ -103,8 +103,34 @@ async def test_find_similar_passes_limit_to_query():
     pool.fetch = AsyncMock(return_value=[])
     store, _ = a_store(pool=pool)
     await store.find_similar(a_change(), limit=5)
-    _, limit_arg = pool.fetch.call_args[0][1], pool.fetch.call_args[0][2]
+    # args: (sql, vector_literal, max_distance, limit)
+    limit_arg = pool.fetch.call_args[0][3]
     assert limit_arg == 5
+
+
+@pytest.mark.asyncio
+async def test_find_similar_filters_by_distance_threshold():
+    pool = AsyncMock()
+    pool.fetch = AsyncMock(return_value=[])
+    store, _ = a_store(pool=pool)
+    await store.find_similar(a_change())
+    sql, _vector, max_distance, _limit = pool.fetch.call_args[0]
+    assert "embedding <=> $1::vector < $2" in sql
+    assert max_distance == 0.5  # SIMILARITY_MAX_DISTANCE default
+
+
+@pytest.mark.asyncio
+async def test_find_similar_uses_configured_max_distance():
+    pool = AsyncMock()
+    pool.fetch = AsyncMock(return_value=[])
+    embedder = AsyncMock()
+    embedder.embed = AsyncMock(return_value=[0.1] * 768)
+    store = PgVectorFindingsStore(
+        dsn="postgresql://unused", embedder=embedder, max_distance=0.2
+    )
+    store._pool = pool
+    await store.find_similar(a_change())
+    assert pool.fetch.call_args[0][2] == 0.2
 
 
 # --- save ---
