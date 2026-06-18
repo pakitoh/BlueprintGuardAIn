@@ -1,0 +1,125 @@
+networks:
+  grafana-net:
+    driver: bridge
+
+services:
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prism_prometheus
+    user: "${UID}:${GID}"
+    command: ["--config.file=/etc/prometheus/prometheus.yaml"]
+    volumes:
+      - ./scripts/prometheus.yaml:/etc/prometheus/prometheus.yaml
+      - ./data/prometheus:/prometheus
+    ports:
+      - "9090:9090"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - grafana-net
+
+  loki:
+    image: grafana/loki:latest
+    container_name: prism_loki
+    ports:
+      - "3100:3100"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3100/ready"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - grafana-net
+
+  tempo:
+    image: grafana/tempo:latest
+    container_name: prism_tempo
+    user: "${UID}:${GID}"
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./scripts/tempo.yaml:/etc/tempo.yaml
+      - ./data/tempo:/tmp/tempo
+    ports:
+      - 3200:3200  # Tempo HTTP
+      - 4317  # OTLP Grpc
+    networks:
+      - grafana-net
+
+  grafana:
+    image: grafana/grafana-oss:latest
+    container_name: prism_grafana
+    user: "${UID}:${GID}"
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./scripts/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/grafana-datasources.yaml
+      - ./data/grafana:/var/lib/grafana
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_SECRET_KEY=super-secure-key
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      prometheus:
+        condition: service_healthy
+      loki:
+        condition: service_healthy
+      tempo:
+        condition: service_started
+    networks:
+      - grafana-net
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: prism_otel_collector
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./scripts/otel-collector-config.yaml:/etc/otel-collector-config.yaml
+    ports:
+      - 1888:1888   # pprof extension
+      - 4317:4317   # OTLP gRPC
+      - 4318:4318   # OTLP HTTP
+      - 8888:8888   # Prometheus metrics exposed by the Collector
+      - 8889:8889   # Prometheus Exporter
+      - 13133:13133 # Health Check
+      - 55679:55679 # zpages extension
+    depends_on:
+      prometheus:
+        condition: service_healthy
+      loki:
+        condition: service_healthy
+      tempo:
+        condition: service_started
+      grafana:
+        condition: service_healthy
+    networks:
+      - grafana-net
+
+  healthcheck:
+    image: curlimages/curl:latest
+    container_name: prism_healthcheck_otel
+    command:
+      - "--fail"
+      - "--silent"
+      - "--retry"
+      - "5"
+      - "--retry-all-errors"
+      - "--output"
+      - "/dev/null"
+      - "http://otel-collector:13133/"
+    depends_on:
+      otel-collector:
+        condition: service_started
+    networks:
+      - grafana-net
