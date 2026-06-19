@@ -1,6 +1,8 @@
 networks:
   guardain-net:
     driver: bridge
+  grafana-net:
+    external: true
 
 services:
 
@@ -9,9 +11,8 @@ services:
     image: ankane/pgvector:latest
     container_name: guardain_analysis_pg
     ports:
-      - "5432:5432"
+      - "5433:5432"
     environment:
-      POSTGRES_DB: guardain_db
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     volumes:
@@ -19,7 +20,7 @@ services:
       - ./scripts/dashboard-db-init.sql:/docker-entrypoint-initdb.d/dashboard-init.sql
       - ./data/postgres:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d guardain_db"]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -86,7 +87,7 @@ services:
       context: .
       dockerfile: ingestion-service/Dockerfile
       target: app
-    container_name: guardain_ingestion_service      
+    container_name: guardain_ingestion_service
     ports:
       - "8000:8000"
     environment:
@@ -97,9 +98,9 @@ services:
     depends_on:
       - kafka
       - schema-registry
-      - otel-collector
     networks:
       - guardain-net
+      - grafana-net
 
   analysis-worker:
     profiles: ["app"]
@@ -109,7 +110,7 @@ services:
       target: app
       args:
         GIT_SHA: ${GIT_SHA:-unknown}
-    container_name: guardain_analysis_worker        
+    container_name: guardain_analysis_worker
     environment:
       ANALYSIS_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       ANALYSIS_SCHEMA_REGISTRY_URL: http://schema-registry:8081
@@ -125,9 +126,9 @@ services:
       - kafka
       - schema-registry
       - postgres
-      - otel-collector
     networks:
       - guardain-net
+      - grafana-net
 
   notification-worker:
     profiles: ["app"]
@@ -145,9 +146,9 @@ services:
     depends_on:
       - kafka
       - schema-registry
-      - otel-collector
     networks:
       - guardain-net
+      - grafana-net
 
   dashboard-service:
     profiles: ["app"]
@@ -171,6 +172,6 @@ services:
       - schema-registry
       - postgres
       - ingestion-service
-      - otel-collector
     networks:
       - guardain-net
+      - grafana-net

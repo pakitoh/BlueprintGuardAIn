@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     port: int = 8002
 
     otel_exporter_otlp_endpoint: str = "http://localhost:4317"
+    otel_service_namespace: str = "blueprint-guardain"
 
     ingestion_url: str = "http://localhost:8000/webhooks/github"
     # Shared HMAC secret used to sign webhooks sent to ingestion-service
@@ -17,7 +18,7 @@ class Settings(BaseSettings):
     schema_registry_url: str = "http://localhost:8081"
 
     github_token: str = ""
-    postgres_url: str = "postgresql://postgres:postgres@localhost:5432/dashboard_db"
+    postgres_url: str = "postgresql://postgres:postgres@localhost:5433/dashboard_db"
 
     model_config = SettingsConfigDict(
         env_file=".env",

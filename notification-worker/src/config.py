@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     otel_exporter_otlp_endpoint: str = "http://localhost:4317"
+    otel_service_namespace: str = "blueprint-guardain"
 
     kafka_bootstrap_servers: str = "localhost:9094"
     schema_registry_url: str = "http://localhost:8081"

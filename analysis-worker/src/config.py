@@ -14,6 +14,7 @@ class Settings(BaseSettings):
 
     # Observability
     otel_exporter_otlp_endpoint: str = "http://localhost:4317"
+    otel_service_namespace: str = "blueprint-guardain"
 
     # Kafka
     kafka_bootstrap_servers: str = "localhost:9094"
@@ -37,7 +38,7 @@ class Settings(BaseSettings):
     github_token: str = ""
 
     # PostgreSQL / pgvector
-    postgres_dsn: str = "postgresql://postgres:postgres@localhost:5432/analysis_db"
+    postgres_dsn: str = "postgresql://postgres:postgres@localhost:5433/analysis_db"
 
     # Langfuse (optional — tracing disabled if keys are blank)
     langfuse_public_key: str = ""

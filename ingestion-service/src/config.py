@@ -9,6 +9,7 @@ class Settings(BaseSettings):
 
     # Observability
     otel_exporter_otlp_endpoint: str = "http://localhost:4317"
+    otel_service_namespace: str = "blueprint-guardain"
 
     # Kafka
     kafka_bootstrap_servers: str = "localhost:9094"

@@ -1,5 +1,6 @@
 networks:
   grafana-net:
+    name: grafana-net
     driver: bridge
 
 services:

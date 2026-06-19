@@ -85,6 +85,7 @@ async def main() -> None:
         configs=[(c.model, c.api_key) for c in settings.embedding_configs],
     )
 
+    print(f"Connecting to {settings.postgres_dsn}")
     pool = await asyncpg.create_pool(settings.postgres_dsn)
     print(f"Connected to {settings.postgres_dsn}")
 

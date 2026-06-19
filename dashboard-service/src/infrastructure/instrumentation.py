@@ -166,6 +166,7 @@ def _setup_resource() -> Resource:
         {
             "service.name": settings.app_name,
             "service.version": resolve_commit_sha(),
+            "service.namespace": settings.otel_service_namespace,
         }
     )
 

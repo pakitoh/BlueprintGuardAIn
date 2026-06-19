@@ -1,11 +1,12 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help start dev install lint test coverage infra infra-down seed build up down
+.PHONY: help start start-observability dev install lint test coverage infra infra-down observability observability-down seed build up down
 
 help:
 	@echo "Usage: make <target>"
 	@echo ""
 	@echo "  start       Full Docker setup: install, lint, infra, seed, build and run all services"
+	@echo "  start-observability  Same as start, but also brings up the local embedded observability stack"
 	@echo "  dev         Local dev setup: install, lint, infra and seed (then run services manually)"
 	@echo ""
 	@echo "  install     Install dependencies for all services"
@@ -14,12 +15,16 @@ help:
 	@echo "  coverage    Run the test suite with a coverage report for all services"
 	@echo "  infra       Start infrastructure (Kafka, PostgreSQL, OTEL stack)"
 	@echo "  infra-down  Stop infrastructure"
+	@echo "  observability       Start the local embedded observability stack (Grafana/Loki/Tempo/Prometheus)"
+	@echo "  observability-down  Stop the local embedded observability stack"
 	@echo "  seed        Seed the analysis knowledge base"
 	@echo "  build       Build all service Docker images"
 	@echo "  up          Start all services via Docker"
 	@echo "  down        Stop all services"
 
 start: install lint infra seed build up
+
+start-observability: install lint infra observability seed build up
 
 dev: install lint infra seed
 
@@ -52,6 +57,12 @@ infra:
 
 infra-down:
 	docker compose down
+
+observability:
+	docker compose -f docker-compose-grafana.yaml up -d
+
+observability-down:
+	docker compose -f docker-compose-grafana.yaml down
 
 seed:
 	cd analysis-worker && uv run python ../scripts/seed_findings.py
