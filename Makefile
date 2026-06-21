@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help start start-observability dev install lint test coverage infra infra-down observability observability-down seed build up down
+.PHONY: help start start-observability dev install lint test coverage infra infra-down observability observability-down seed build up down chaos-kafka chaos-infra chaos-recover
 
 help:
 	@echo "Usage: make <target>"
@@ -21,6 +21,10 @@ help:
 	@echo "  build       Build all service Docker images"
 	@echo "  up          Start all services via Docker"
 	@echo "  down        Stop all services"
+	@echo ""
+	@echo "  chaos-kafka    Inject a malformed/mismatched-schema Kafka message (MODE=garbage|truncated|wrong-schema, COUNT=1)"
+	@echo "  chaos-infra    Fault-inject a running container via Pumba (ACTION=pause|kill|delay|loss, CONTAINER=guardain_kafka, VALUE, DURATION)"
+	@echo "  chaos-recover  Unpause/restart any containers affected by chaos-infra"
 
 start: install lint infra seed build up
 
@@ -75,3 +79,14 @@ up:
 
 down:
 	docker compose --profile app down
+
+chaos-kafka:
+	uv run scripts/chaos_kafka.py --mode $(or $(MODE),garbage) --count $(or $(COUNT),1)
+
+chaos-infra:
+	scripts/chaos_infra.sh $(or $(ACTION),pause) $(or $(CONTAINER),guardain_kafka) $(VALUE) $(DURATION)
+
+chaos-recover:
+	-docker unpause $$(docker ps -aq --filter "name=guardain_") 2>/dev/null
+	docker compose up -d
+	docker compose --profile app up -d
