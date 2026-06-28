@@ -17,8 +17,8 @@ set -euo pipefail
 #                   guardain_ingestion_service, guardain_analysis_worker,
 #                   guardain_notification_worker, guardain_dashboard_service
 
-PUMBA_IMAGE="gaiaadm/pumba"
-NETEM_IMAGE="gaiadocker/iproute2"
+PUMBA_IMAGE="ghcr.io/alexei-led/pumba"
+NETEM_IMAGE="ghcr.io/alexei-led/pumba-alpine-nettools:latest"
 
 run_pumba() {
   docker run --rm -v /var/run/docker.sock:/var/run/docker.sock "$PUMBA_IMAGE" "$@"
@@ -36,24 +36,24 @@ case "$action" in
   pause)
     duration="${3:-30s}"
     echo "Pausing $container for $duration ..."
-    run_pumba pumba pause --duration "$duration" "$container"
+    run_pumba pause --duration "$duration" "$container"
     ;;
   kill)
     echo "Killing $container (won't restart automatically — no restart policy is set) ..."
-    run_pumba pumba kill "$container"
+    run_pumba kill "$container"
     echo "Bring it back with: docker compose up -d <service-name>"
     ;;
   delay)
     ms="${3:-3000}"
     duration="${4:-30s}"
     echo "Adding ${ms}ms latency to $container for $duration ..."
-    run_pumba pumba netem --duration "$duration" --tc-image "$NETEM_IMAGE" delay --time "$ms" "$container"
+    run_pumba netem --duration "$duration" --tc-image "$NETEM_IMAGE" delay --time "$ms" "$container"
     ;;
   loss)
     pct="${3:-50}"
     duration="${4:-30s}"
     echo "Dropping ${pct}% of packets on $container for $duration ..."
-    run_pumba pumba netem --duration "$duration" --tc-image "$NETEM_IMAGE" loss --percent "$pct" "$container"
+    run_pumba netem --duration "$duration" --tc-image "$NETEM_IMAGE" loss --percent "$pct" "$container"
     ;;
   *)
     echo "Unknown action: $action (expected pause|kill|delay|loss)"
