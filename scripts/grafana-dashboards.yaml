@@ -1,0 +1,16 @@
+apiVersion: 1
+
+# Provisions the LLM runs dashboard from a file. Mount this provider and the
+# dashboard JSON into Grafana the same way grafana-datasources.yaml is provisioned — and, like
+# the datasources file, keep a copy in the observability stack (/home/paco/Labs/grafana) where
+# Grafana actually runs. `path` must point at the directory holding grafana-dashboard-runs.json.
+providers:
+  - name: runs
+    orgId: 1
+    folder: LLM Runs
+    type: file
+    disableDeletion: false
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards
+      foldersFromFilesStructure: false

@@ -3,11 +3,12 @@ networks:
     name: grafana-net
     driver: bridge
 
+
 services:
 
   prometheus:
     image: prom/prometheus:latest
-    container_name: prism_prometheus
+    container_name: prometheus
     user: "${UID}:${GID}"
     command: ["--config.file=/etc/prometheus/prometheus.yaml"]
     volumes:
@@ -25,7 +26,7 @@ services:
 
   loki:
     image: grafana/loki:latest
-    container_name: prism_loki
+    container_name: loki
     ports:
       - "3100:3100"
     healthcheck:
@@ -38,7 +39,7 @@ services:
 
   tempo:
     image: grafana/tempo:latest
-    container_name: prism_tempo
+    container_name: tempo
     user: "${UID}:${GID}"
     command: ["-config.file=/etc/tempo.yaml"]
     volumes:
@@ -52,12 +53,14 @@ services:
 
   grafana:
     image: grafana/grafana-oss:latest
-    container_name: prism_grafana
+    container_name: grafana
     user: "${UID}:${GID}"
     ports:
       - "3000:3000"
     volumes:
       - ./scripts/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/grafana-datasources.yaml
+      - ./scripts/grafana-dashboards.yaml:/etc/grafana/provisioning/dashboards/grafana-dashboards.yaml
+      - ./scripts/grafana-dashboard-runs.json:/etc/grafana/provisioning/dashboards/grafana-dashboard-runs.json
       - ./data/grafana:/var/lib/grafana
     environment:
       - GF_AUTH_ANONYMOUS_ENABLED=true
@@ -83,7 +86,7 @@ services:
 
   otel-collector:
     image: otel/opentelemetry-collector-contrib:latest
-    container_name: prism_otel_collector
+    container_name: otel_collector
     command: ["--config=/etc/otel-collector-config.yaml"]
     volumes:
       - ./scripts/otel-collector-config.yaml:/etc/otel-collector-config.yaml
@@ -109,7 +112,7 @@ services:
 
   healthcheck:
     image: curlimages/curl:latest
-    container_name: prism_healthcheck_otel
+    container_name: healthcheck_otel
     command:
       - "--fail"
       - "--silent"

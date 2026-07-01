@@ -5,15 +5,16 @@ datasources:
     type: prometheus
     access: proxy
     url: http://prometheus:9090
+    uid: prometheus                    # Explicit stable UID
     isDefault: true
   - name: Tempo
     type: tempo
     access: proxy
     url: http://tempo:3200
-    uid: tempo                         # Explicit UID used by Loki's derivedFields
+    uid: tempo                         # Explicit stable UID
     jsonData:
       tracesToLogsV2:
-        datasourceUid: Loki            # Target data source name or UID
+        datasourceUid: loki            # Target data source name or UID
         spanStartTimeShift: '5m'       # Search logs 1 hour before trace start
         spanEndTimeShift: '5m'         # Search logs 1 hour after trace end
         tags:
@@ -25,10 +26,22 @@ datasources:
     type: loki
     access: proxy
     url: http://loki:3100
+    uid: loki                          # Explicit stable UID
     jsonData:
       derivedFields:
+        # For app logs that embed the id in the line (e.g. JSON logs with a "trace_id" field).
         - datasourceUid: tempo         # Must match the 'uid' fields of Tempo below
           name: TraceID
           matcherRegex: '"trace_id":\s*"\s*([a-fA-F0-9]{32})\s*"' # Matches trace_id=xyz or traceID=xyz
           url: '$${__value.raw}'       # Note the double $$ to escape Docker/Grafana variables
+          internal: true
+        # For OTLP-ingested logs (e.g. an OTLP-instrumented service): the trace id arrives as a `trace_id`
+        # stream label, not in the line — so match the label by name. A DISTINCT field name is
+        # required: a second derived field sharing "TraceID" gets shadowed and never links.
+        - datasourceUid: tempo
+          name: TraceIDLabel
+          matcherType: label
+          matcherRegex: trace_id       # the trace_id stream label name
+          url: '$${__value.raw}'
+          urlDisplayLabel: 'View Trace'
           internal: true
